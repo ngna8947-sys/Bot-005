@@ -59,7 +59,7 @@ MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
-# 💎 កូដ Static KHQR ស្ដង់ដារថេរ ត្រូវនឹង mon_samnang@bkrt របស់អ្នក
+# 💎 កូដ Static KHQR ស្ដង់ដារថេរ 100% ត្រូវនឹង mon_samnang@bkrt មិនខុស Format
 MY_STATIC_QR = "00020101021129190011kh.gov.nbc.bakong0115mon_samnang@bkrt5204599953038405802KH5909KhmerSMM6010Phnom Penh6304"
 
 WALLETS_FILE = "smm_wallets.json"
@@ -317,7 +317,7 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     draw.text((qr_cx, qr_cy), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
 
     draw.text((card_w // 2, box_y2 + 65), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
-    draw.text((card_w // 2, box_y2 + 125), f"AMOUNT: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
+    draw.text((card_w // 2, box_y2 + 125), f"TOP UP: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
 
     overlay = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     ov_draw = ImageDraw.Draw(overlay)
