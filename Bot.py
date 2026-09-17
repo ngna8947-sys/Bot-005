@@ -16,6 +16,7 @@ from telebot.types import (
 )
 
 def _ensure_deps():
+    # បន្ថែម bakong-khqr ឱ្យ Auto-install លើ GitHub ដាច់ខាត
     pkgs = {
         "PIL": "pillow",
         "qrcode": "qrcode",
@@ -159,7 +160,7 @@ def smm_api_balance():
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
-#  STATIC KHQR GENERATOR (ស្ដង់ដារដែលធនាគារទទួលស្គាល់ ១០០%)
+#  ACCURATE KHQR GENERATOR
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -172,20 +173,22 @@ def _crc16_khqr(data: str) -> str:
                 crc = (crc << 1) & 0xFFFF
     return f"{crc:04X}"
 
-def _build_static_khqr(account_id: str) -> str:
+def _build_dynamic_khqr_manual(account_id: str, amount: float) -> str:
     def tag(tid: int, val: str) -> str:
         val_str = str(val)
         return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
 
     sub29 = tag(0, "kh.gov.nbc.bakong") + tag(1, account_id)
     tag29 = tag(29, sub29)
+    amt_str = f"{amount:.2f}"
 
     payload = (
         tag(0, "01") +
-        tag(1, "11") +                   # 11 = Static QR ស្តង់ដារ (ដំណើរការគ្រប់ធនាគារ)
+        tag(1, "12") +
         tag29 +
         tag(52, "5999") +
         tag(53, "840") +
+        tag(54, amt_str) +
         tag(58, "KH") +
         tag(59, MERCHANT_NAME) +
         tag(60, MERCHANT_CITY) +
@@ -194,47 +197,39 @@ def _build_static_khqr(account_id: str) -> str:
     return payload + _crc16_khqr(payload)
 
 def _generate_khqr(uid, amount, note=""):
+    amt = round(float(amount), 2)
     try:
         from bakong_khqr import KHQR
+        # ហៅដូចនៅលើកុំព្យូទ័ររបស់អ្នកបេះបិទ
         qr = KHQR(BAKONG_TOKEN).create_qr(
             bank_account=BANK_ACCOUNT,
             merchant_name=MERCHANT_NAME,
             merchant_city=MERCHANT_CITY,
-            amount=round(float(amount), 2),
+            amount=amt,
             currency="USD",
             bill_number=(note or f"uid{uid}")[:25],
-            static=True,                  # ប្រើ Static QR ដើម្បីកុំឱ្យធនាគារបដិសេធ
+            static=False,
         )
         if qr and qr.startswith("000201"):
             return qr
-    except Exception:
-        pass
-    
-    return _build_static_khqr(BANK_ACCOUNT)
+    except Exception as e:
+        logger.warning(f"Library error: {e}")
+
+    return _build_dynamic_khqr_manual(BANK_ACCOUNT, amt)
 
 def _check_bakong(md5, amount, start_ts):
-    # 1. ឆែកតាម Library
     try:
         from bakong_khqr import KHQR as _BK
-        if _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID":
-            return True
+        return _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID"
     except Exception:
-        pass
-
-    # 2. ឆែកផ្ទាល់តាម Bakong API Endpoint
-    try:
-        url = "https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5"
-        headers = {
-            "Authorization": f"Bearer {BAKONG_TOKEN}",
-            "Content-Type": "application/json"
-        }
-        res = requests.post(url, json={"md5": str(md5)}, headers=headers, timeout=8).json()
-        if res.get("responseCode") == 0 and res.get("data", {}).get("status") == "SUCCESS":
-            return True
-    except Exception:
-        pass
-
-    return False
+        # Fallback ឆែកផ្ទាល់ជាមួយ Bakong API ប្រសិនបើ library មានបញ្ហាលើ Cloud
+        try:
+            url = "https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5"
+            headers = {"Authorization": f"Bearer {BAKONG_TOKEN}", "Content-Type": "application/json"}
+            res = requests.post(url, json={"md5": str(md5)}, headers=headers, timeout=6).json()
+            return res.get("responseCode") == 0 and res.get("data", {}).get("status") == "SUCCESS"
+        except:
+            return False
 
 # ═══════════════════════════════════════════════════════════
 #  DRAW STYLED ABA PAY TEMPLATE
@@ -343,10 +338,10 @@ def _build_caption(amount, remaining_sec):
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 ឈ្មោះគណនី: <b>{MERCHANT_NAME}</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់ត្រូវផ្ញើ: <b>${amount:.2f} USD</b>\n"
+        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f} USD</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ ABA, Bakong ឬ Wing (សូមវាយចំនួន <b>${amount:.2f}</b> ពេលបាញ់)"
+        f"📱 Scan ជាមួយ ABA, Bakong, Wing ដើម្បីទូទាត់ភ្លាមៗ (ទឹកប្រាក់នឹងលោតស្វ័យប្រវត្តិតាម App)"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -414,8 +409,13 @@ def _send_deposit_qr(uid, amount):
         bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
         return
 
-    import hashlib
-    md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
+    # បង្កើត MD5 ត្រឹមត្រូវតាមស្ដង់ដារ
+    try:
+        from bakong_khqr import KHQR
+        md5_hash = KHQR(BAKONG_TOKEN).generate_md5(qr_str)
+    except:
+        import hashlib
+        md5_hash = hashlib.md5(qr_str.encode("utf-8")).hexdigest()
 
     dep_id = f"dep_{uid}_{int(time.time())}"
     store_deps[dep_id] = {
@@ -1942,16 +1942,14 @@ def handle_messages(message):
 flask_app = Flask(__name__)
 
 @flask_app.route("/health")
-@flask_app.route("/")
 def health():
-    return jsonify({"status": "running", "service": "KhmerSMM Bot", "type": "Static KHQR Verified"})
+    return jsonify({"status": "running", "type": "KhmerSMM Dynamic KHQR Mode"})
 
 def run_flask():
-    port = int(os.environ.get("PORT", 5055))
-    flask_app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+    flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
 
 if __name__ == "__main__":
-    logger.info("🚀 KhmerSMM Full Bot is running...")
+    logger.info("🚀 Full Bot is running...")
     threading.Thread(target=run_flask, daemon=True).start()
     
     while True:
