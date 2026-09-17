@@ -45,11 +45,6 @@ from PIL import Image, ImageDraw, ImageFont
 import qrcode
 import requests
 
-try:
-    from bakong_khqr import KHQR
-except ImportError:
-    KHQR = None
-
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
@@ -86,7 +81,7 @@ DEFAULT_KHMER_SMM = {
     "fb_page_fol": {"cat": "Facebook", "name": "👥 FB Page Followers", "rate": 2.20, "min": 100, "max": 50000, "api_service_id": 106},
     "fb_prof_fol": {"cat": "Facebook", "name": "👤 FB Profile Followers", "rate": 1.90, "min": 100, "max": 50000, "api_service_id": 107},
     "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
-    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 20000, "api_service_id": 110},
+    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
     "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
@@ -164,7 +159,7 @@ def smm_api_balance():
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
-#  STANDARD BAKONG INDIVIDUAL KHQR (WITH AMOUNT LOCKED)
+#  STATIC KHQR GENERATOR (ស្ដង់ដារដែលធនាគារទទួលស្គាល់ ១០០%)
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -177,24 +172,20 @@ def _crc16_khqr(data: str) -> str:
                 crc = (crc << 1) & 0xFFFF
     return f"{crc:04X}"
 
-def _build_correct_khqr(account_id: str, amount: float):
+def _build_static_khqr(account_id: str) -> str:
     def tag(tid: int, val: str) -> str:
         val_str = str(val)
         return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
 
-    # Tag 29 សម្រាប់គណនី Bakong Transfer
     sub29 = tag(0, "kh.gov.nbc.bakong") + tag(1, account_id)
     tag29 = tag(29, sub29)
-    amt_str = f"{amount:.2f}"
 
-    # ប្រើ "01" (Point of Initiation Method = 12 សម្រាប់ចាក់សោលុយស្វ័យប្រវត្តិ)
     payload = (
         tag(0, "01") +
-        tag(1, "12") +
+        tag(1, "11") +                   # 11 = Static QR ស្តង់ដារ (ដំណើរការគ្រប់ធនាគារ)
         tag29 +
         tag(52, "5999") +
-        tag(53, "840") +                  # 840 = USD
-        tag(54, amt_str) +                # ចំនួនទឹកប្រាក់ចាក់សោ
+        tag(53, "840") +
         tag(58, "KH") +
         tag(59, MERCHANT_NAME) +
         tag(60, MERCHANT_CITY) +
@@ -202,45 +193,42 @@ def _build_correct_khqr(account_id: str, amount: float):
     )
     return payload + _crc16_khqr(payload)
 
-def _generate_khqr_and_md5(uid, amount):
-    amt = round(float(amount), 2)
-    # បង្កើត QR តាមទម្រង់ដែលគ្រប់ App ធនាគារទាំងអស់គាំទ្រ
-    qr_str = _build_correct_khqr(BANK_ACCOUNT, amt)
+def _generate_khqr(uid, amount, note=""):
+    try:
+        from bakong_khqr import KHQR
+        qr = KHQR(BAKONG_TOKEN).create_qr(
+            bank_account=BANK_ACCOUNT,
+            merchant_name=MERCHANT_NAME,
+            merchant_city=MERCHANT_CITY,
+            amount=round(float(amount), 2),
+            currency="USD",
+            bill_number=(note or f"uid{uid}")[:25],
+            static=True,                  # ប្រើ Static QR ដើម្បីកុំឱ្យធនាគារបដិសេធ
+        )
+        if qr and qr.startswith("000201"):
+            return qr
+    except Exception:
+        pass
     
-    # គណនា MD5 សម្រាប់ Verify តាមស្តង់ដារផ្លូវការរបស់ Bakong
-    md5_str = None
-    if KHQR:
-        try:
-            md5_str = KHQR(BAKONG_TOKEN).generate_md5(qr_str)
-        except Exception:
-            pass
-
-    if not md5_str:
-        import hashlib
-        md5_str = hashlib.md5(qr_str.encode("utf-8")).hexdigest()
-
-    return qr_str, md5_str
+    return _build_static_khqr(BANK_ACCOUNT)
 
 def _check_bakong(md5, amount, start_ts):
-    if not md5:
-        return False
-    # 1. ឆែកតាម bakong-khqr SDK
-    if KHQR:
-        try:
-            status = KHQR(BAKONG_TOKEN).check_payment(str(md5))
-            if status in ("PAID", "SUCCESS", True):
-                return True
-        except Exception:
-            pass
+    # 1. ឆែកតាម Library
+    try:
+        from bakong_khqr import KHQR as _BK
+        if _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID":
+            return True
+    except Exception:
+        pass
 
-    # 2. ឆែកផ្ទាល់ជាមួយ Bakong Open API
+    # 2. ឆែកផ្ទាល់តាម Bakong API Endpoint
     try:
         url = "https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5"
         headers = {
             "Authorization": f"Bearer {BAKONG_TOKEN}",
             "Content-Type": "application/json"
         }
-        res = requests.post(url, json={"md5": str(md5)}, headers=headers, timeout=10).json()
+        res = requests.post(url, json={"md5": str(md5)}, headers=headers, timeout=8).json()
         if res.get("responseCode") == 0 and res.get("data", {}).get("status") == "SUCCESS":
             return True
     except Exception:
@@ -355,10 +343,10 @@ def _build_caption(amount, remaining_sec):
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 ឈ្មោះគណនី: <b>{MERCHANT_NAME}</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f} USD</b>\n"
+        f"💰 ចំនួនទឹកប្រាក់ត្រូវផ្ញើ: <b>${amount:.2f} USD</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ដើម្បីទូទាត់ភ្លាមៗ (ទឹកប្រាក់នឹងលោតស្វ័យប្រវត្តិតាម App)"
+        f"📱 Scan ជាមួយ ABA, Bakong ឬ Wing (សូមវាយចំនួន <b>${amount:.2f}</b> ពេលបាញ់)"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -421,11 +409,13 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
 
 def _send_deposit_qr(uid, amount):
     uid_str = str(uid)
-    qr_str, md5_hash = _generate_khqr_and_md5(uid, amount)
-    
+    qr_str = _generate_khqr(uid, amount, f"uid={uid} ${amount}")
     if not qr_str:
         bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
         return
+
+    import hashlib
+    md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
 
     dep_id = f"dep_{uid}_{int(time.time())}"
     store_deps[dep_id] = {
@@ -1954,7 +1944,7 @@ flask_app = Flask(__name__)
 @flask_app.route("/health")
 @flask_app.route("/")
 def health():
-    return jsonify({"status": "running", "service": "KhmerSMM Bot", "type": "Dynamic KHQR Fixed"})
+    return jsonify({"status": "running", "service": "KhmerSMM Bot", "type": "Static KHQR Verified"})
 
 def run_flask():
     port = int(os.environ.get("PORT", 5055))
