@@ -136,29 +136,10 @@ def get_disc_price(orig_price, disc_percent):
         return orig_price
     return max(0.01, round(orig_price * (1 - disc_percent / 100.0), 2))
 
-def smm_api_order(service_id, link, quantity):
-    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
-    if not url or not key:
-        return {"error": "Admin មិនទាន់កំណត់ API"}
-    payload = {"key": key, "action": "add", "service": service_id, "link": link, "quantity": quantity}
-    try:
-        return requests.post(url, data=payload, timeout=25).json()
-    except Exception as e:
-        return {"error": str(e)}
-
-def smm_api_balance():
-    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
-    if not url or not key:
-        return "❌ មិនទាន់កំណត់ API"
-    try:
-        resp = requests.post(url, data={"key": key, "action": "balance"}, timeout=15).json()
-        if "balance" in resp:
-            return f"${float(resp['balance']):.2f} {resp.get('currency', 'USD')}"
-        return f"Error: {resp.get('error', 'Unknown')}"
-    except Exception as e:
-        return f"Error: {e}"
-
-def _crc16_ccitt(data: str) -> str:
+# ═══════════════════════════════════════════════════════════
+#  STANDARD KHQR EMVCo GENERATOR (ក្បួនផ្លូវការធនាគារជាតិ)
+# ═══════════════════════════════════════════════════════════
+def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
     for ch in data:
         crc ^= (ord(ch) << 8)
@@ -169,25 +150,33 @@ def _crc16_ccitt(data: str) -> str:
                 crc = (crc << 1) & 0xFFFF
     return f"{crc:04X}"
 
-def _build_raw_bakong_qr(account_id, amount_usd, bill_num):
+def _build_standard_khqr(account_id, amount_usd, bill_number):
     def tag(tid, val):
-        return f"{tid:02d}{len(val):02d}{val}"
+        val_str = str(val)
+        return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
 
+    # Tag 29: Merchant Account Info (Bakong Standard)
     sub29 = tag(0, account_id)
+    tag29 = tag(29, sub29)
+
+    # Tag 62: Additional Data (Bill Number & Store Label)
+    sub62 = tag(1, str(bill_number)[:25]) + tag(3, "KhmerSMM")
+    tag62 = tag(62, sub62)
+
     payload = (
-        tag(0, "01") +
-        tag(1, "12") +
-        tag(29, sub29) +
-        tag(52, "5999") +
-        tag(53, "840") +
-        tag(54, f"{amount_usd:.2f}") +
-        tag(58, "KH") +
-        tag(59, "KhmerSMM") +
-        tag(60, "Phnom Penh") +
-        tag(62, tag(1, str(bill_num)[:25])) +
-        "6304"
+        tag(0, "01") +             # Payload Format Indicator
+        tag(1, "12") +             # Point of Initiation Method (12 = Dynamic with Amount)
+        tag29 +                    # Merchant Info
+        tag(52, "5999") +          # Merchant Category Code
+        tag(53, "840") +           # Transaction Currency (840 = USD)
+        tag(54, f"{amount_usd:.2f}") + # Amount
+        tag(58, "KH") +            # Country Code
+        tag(59, "KhmerSMM") +      # Merchant Name
+        tag(60, "Phnom Penh") +    # Merchant City
+        tag62 +                    # Additional Data Field
+        "6304"                     # CRC Placeholder
     )
-    return payload + _crc16_ccitt(payload)
+    return payload + _crc16_khqr(payload)
 
 def _generate_khqr(uid, amount, note=""):
     try:
@@ -201,11 +190,13 @@ def _generate_khqr(uid, amount, note=""):
             bill_number=(note or f"uid{uid}")[:25],
             static=False,
         )
-        if qr:
+        if qr and qr.startswith("000201"):
             return qr
     except Exception:
         pass
-    return _build_raw_bakong_qr(BANK_ACCOUNT, round(float(amount), 2), (note or f"uid{uid}")[:25])
+    
+    # ប្រើ Standard Generator បើ SDK បរាជ័យ
+    return _build_standard_khqr(BANK_ACCOUNT, round(float(amount), 2), (note or f"uid{uid}")[:25])
 
 def _check_bakong(md5, amount, start_ts):
     try:
@@ -214,10 +205,14 @@ def _check_bakong(md5, amount, start_ts):
     except Exception:
         return False
 
+# ═══════════════════════════════════════════════════════════
+#  DRAW STYLED BAKONG KHQR
+# ═══════════════════════════════════════════════════════════
 def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     card_w, card_h = 750, 1050
     card = Image.new("RGBA", (card_w, card_h), "#FFFFFF")
     draw = ImageDraw.Draw(card)
+
     draw.rectangle([(0, 0), (card_w, 28)], fill="#c8102e")
 
     font_header, font_slogan, font_name, font_khqr_small, font_amt, font_dollar = None, None, None, None, None, None
@@ -291,7 +286,7 @@ def _build_caption(amount, remaining_sec):
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 ឈ្មោះគណនី: <b>KhmerSMM</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b> (ស្វ័យប្រវត្តិក្នុង QR)\n"
+        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"📱 Scan ជាមួយ Bakong, ABA, Wing ឬធនាគារនានា"
@@ -928,7 +923,11 @@ def handle_callbacks(call):
             del games_db[gkey]
             _save(GAMES_FILE, games_db)
             bot.answer_callback_query(call.id, "✅ បានលុបហ្គេមរួចរាល់")
-            bot.edit_message_text("🗑️ បានលុបហ្គេមនេះចេញពីបញ្ជីលក់!", chat_id=uid, message_id=call.message.message_id)
+            bot.edit_message_text(
+                "🗑️ បានលុបហ្គេមនេះចេញពីបញ្ជីលក់!",
+                chat_id=uid,
+                message_id=call.message.message_id,
+            )
 
     elif data.startswith("del_acc:"):
         if uid != ADMIN_ID: return
@@ -937,7 +936,11 @@ def handle_callbacks(call):
             del accounts_db[aid]
             _save(ACCOUNTS_FILE, accounts_db)
             bot.answer_callback_query(call.id, "✅ បានលុបអាខោនរួចរាល់")
-            bot.edit_message_text("🗑️ បានលុបមុខទំនិញអាខោននេះចោល!", chat_id=uid, message_id=call.message.message_id)
+            bot.edit_message_text(
+                "🗑️ បានលុបមុខទំនិញអាខោននេះចោល!",
+                chat_id=uid,
+                message_id=call.message.message_id,
+            )
 
     elif data.startswith("adm_add_stock:"):
         if uid != ADMIN_ID: return
@@ -1883,7 +1886,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Full Feature Bot"})
+    return jsonify({"status": "running", "type": "KhmerSMM Bakong Pay Standard"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
@@ -1892,7 +1895,6 @@ if __name__ == "__main__":
     logger.info("🚀 Full Bot is running...")
     threading.Thread(target=run_flask, daemon=True).start()
     
-    # Auto-recovery Loop ការពារ Error 409 Conflict
     while True:
         try:
             bot.remove_webhook()
