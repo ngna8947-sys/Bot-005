@@ -57,9 +57,8 @@ BANK_ACCOUNT = "mon_samnang@bkrt"
 MERCHANT_NAME = "Khmer SMM"
 MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
-POLL_INTERVAL = 5
 
-# 💎 កូដ KHQR ផ្លូវការត្រឹមត្រូវ ១០០% ស្របតាមរូបភាពដែលអ្នកបានផ្ដល់ជូន
+# 💎 កូដ KHQR ផ្លូវការរបស់អ្នក
 MY_STATIC_QR = "00020101021130510016abaabkrhppxxx@abaa01151260903142910660208ABA Bank5204651353038405802KH5911MON SAMNANG6012KAMPONG THOM624268380010PAYWAY@ABA01071950962020903248607663044150"
 
 WALLETS_FILE = "smm_wallets.json"
@@ -223,17 +222,6 @@ def smm_api_balance():
     except Exception as e:
         return f"Error: {e}"
 
-def _generate_khqr(uid, amount, note=""):
-    return MY_STATIC_QR
-
-def _check_bakong(md5, amount, start_ts):
-    try:
-        bk = KHQR(BAKONG_TOKEN)
-        status = bk.check_payment(str(md5))
-        return status == "PAID"
-    except Exception:
-        return False
-
 # ═══════════════════════════════════════════════════════════
 #  DRAW STYLED ABA PAY TEMPLATE
 # ═══════════════════════════════════════════════════════════
@@ -335,125 +323,40 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="Khmer SMM"):
     buf.seek(0)
     return buf
 
-def _build_caption(amount, remaining_sec):
-    mins, secs = max(0, remaining_sec // 60), max(0, remaining_sec % 60)
-    return (
-        f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"👤 ឈ្មោះ: <b>Khmer SMM</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់ត្រូវវាយបញ្ចូល: <b>${amount:.2f} USD</b>\n"
-        f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ ABA, Bakong, Wing ឬគ្រប់ធនាគារ"
-    )
-
-def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
-    deadline = start_ts + DEPOSIT_EXPIRE_SEC
-    last_edit = 0
-
-    while time.time() < deadline:
-        now = time.time()
-        remaining = int(deadline - now)
-        dep = store_deps.get(dep_id)
-        if not dep or dep.get("status") != "pending":
-            return
-
-        if _check_bakong(dep.get("md5", ""), amount, start_ts):
-            add_bal(uid, round(amount, 2))
-            dep["status"] = "confirmed"
-            _save(STORE_DEP_FILE, store_deps)
-            try:
-                bot.edit_message_caption(
-                    chat_id=uid,
-                    message_id=msg_id,
-                    caption=f"✅ <b>ការទូទាត់ទទួលបានជោគជ័យ!</b>\n💰 បញ្ចូល: +${amount:.2f}",
-                )
-                bot.send_message(
-                    uid,
-                    f"✅ <b>ដាក់ប្រាក់ជោគជ័យ!</b>\n💰 +${amount:.2f}\n💳 សមតុល្យសរុប: <b>${bal(uid):.2f}</b>",
-                    reply_markup=user_kb(uid),
-                )
-                bot.send_message(
-                    ADMIN_ID, f"💰 <b>Auto KHQR</b>\n👤 <code>{uid_str}</code> | +${amount:.2f}"
-                )
-            except:
-                pass
-            return
-
-        if now - last_edit >= 10 and msg_id:
-            try:
-                bot.edit_message_caption(
-                    chat_id=uid,
-                    message_id=msg_id,
-                    caption=_build_caption(amount, remaining),
-                )
-                last_edit = now
-            except:
-                pass
-        time.sleep(POLL_INTERVAL)
-
-    dep = store_deps.get(dep_id)
-    if dep and dep.get("status") == "pending":
-        dep["status"] = "expired"
-        _save(STORE_DEP_FILE, store_deps)
-        try:
-            bot.edit_message_caption(
-                chat_id=uid,
-                message_id=msg_id,
-                caption="❌ <b>QR ផុតកំណត់ហើយ!</b> សូមស្នើសុំម្ដងទៀត។",
-            )
-        except:
-            pass
-
 def _send_deposit_qr(uid, amount):
     uid_str = str(uid)
-    qr_str = _generate_khqr(uid, amount, f"uid={uid} ${amount}")
-    if not qr_str:
-        bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
-        return
-
-    import hashlib
-    md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
-
     dep_id = f"dep_{uid}_{int(time.time())}"
+    
     store_deps[dep_id] = {
         "uid": uid_str,
         "amount": amount,
         "status": "pending",
-        "md5": md5_hash,
-        "qr_str": qr_str,
+        "time": int(time.time())
     }
     _save(STORE_DEP_FILE, store_deps)
 
-    admin_kb_dep = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("✅ បញ្ចូលលុយឱ្យ", callback_data=f"manual_dep:approve:{dep_id}"),
-            InlineKeyboardButton("❌ បដិសេធ", callback_data=f"manual_dep:reject:{dep_id}"),
-        ]
+    caption = (
+        f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"👤 ឈ្មោះ: <b>Khmer SMM</b>\n"
+        f"💰 ចំនួនទឹកប្រាក់ត្រូវបង់: <b>${amount:.2f} USD</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📱 <b>វិធីបង់ប្រាក់៖</b>\n"
+        f"1. Scan QR ខាងក្រោមតាម ABA ឬគ្រប់ធនាគារ\n"
+        f"2. បង់ប្រាក់ចំនួន <b>${amount:.2f}</b>\n"
+        f"3. ចុចប៊ូតុង <b>«📤 ផ្ញើ Slip បញ្ជាក់ការបង់ប្រាក់»</b> ខាងក្រោមដើម្បីឱ្យ Admin បញ្ចូលលុយជូនភ្លាមៗ!"
+    )
+
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📤 ផ្ញើ Slip បញ្ជាក់ការបង់ប្រាក់", callback_data=f"send_slip:{dep_id}")],
+        [InlineKeyboardButton("❌ បោះបង់", callback_data=f"cancel_dep:{dep_id}")]
     ])
-    try:
-        bot.send_message(
-            ADMIN_ID,
-            f"📥 <b>ការស្នើដាក់លុយ!</b>\n👤 <code>{uid_str}</code> | 💰 <b>${amount:.2f}</b>",
-            reply_markup=admin_kb_dep,
-        )
-    except:
-        pass
 
     try:
-        buf = _generate_styled_khqr_image(qr_str, amount, "Khmer SMM")
-        sent = bot.send_photo(uid, buf, caption=_build_caption(amount, DEPOSIT_EXPIRE_SEC))
-    except Exception:
-        sent = bot.send_message(
-            uid, _build_caption(amount, DEPOSIT_EXPIRE_SEC) + f"\n\n<code>{qr_str}</code>"
-        )
-
-    msg_id = sent.message_id if sent else None
-    threading.Thread(
-        target=_watch_deposit_and_countdown,
-        args=(uid, uid_str, dep_id, amount, msg_id, int(time.time())),
-        daemon=True,
-    ).start()
+        buf = _generate_styled_khqr_image(MY_STATIC_QR, amount, "Khmer SMM")
+        bot.send_photo(uid, buf, caption=caption, reply_markup=kb)
+    except Exception as e:
+        bot.send_message(uid, caption + f"\n\n<code>{MY_STATIC_QR}</code>", reply_markup=kb)
 
 # ═══════════════════════════════════════════════════════════
 #  KEYBOARDS
@@ -655,6 +558,72 @@ def handle_callbacks(call):
             bot.send_message(uid, "✏️ <b>សូមផ្ញើចំនួនទឹកប្រាក់ ($) ដែលចង់ដាក់:</b>", reply_markup=cancel_kb())
             return
         _send_deposit_qr(uid, float(val))
+
+    elif data.startswith("send_slip:"):
+        dep_id = data.split(":")[1]
+        bot.answer_callback_query(call.id)
+        waiting[uid] = {"step": "wait_slip", "dep_id": dep_id}
+        bot.send_message(
+            uid,
+            "📤 <b>សូមផ្ញើរូបភាពសន្លឹកបង់ប្រាក់ (Slip) របស់អ្នកមកទីនេះ៖</b>",
+            reply_markup=cancel_kb(),
+        )
+        return
+
+    elif data.startswith("cancel_dep:"):
+        dep_id = data.split(":")[1]
+        if dep_id in store_deps:
+            store_deps[dep_id]["status"] = "canceled"
+            _save(STORE_DEP_FILE, store_deps)
+        bot.answer_callback_query(call.id, "❌ បានបោះបង់ការដាក់ប្រាក់")
+        try:
+            bot.delete_message(uid, call.message.message_id)
+        except:
+            pass
+        bot.send_message(uid, "🏠 ត្រឡប់មកកាន់ផ្ទាំងដើមវិញ", reply_markup=user_kb(uid))
+        return
+
+    elif data.startswith("manual_dep:"):
+        if uid != ADMIN_ID: return
+        _, act, dep_id = data.split(":")
+        dep = store_deps.get(dep_id)
+        if not dep:
+            bot.answer_callback_query(call.id, "❌ គ្មានទិន្នន័យ")
+            return
+        target_uid, amt = int(dep["uid"]), float(dep["amount"])
+        if act == "approve":
+            if dep.get("status") == "confirmed":
+                bot.answer_callback_query(call.id, "⚠️ ដាក់រួចហើយ!")
+                return
+            add_bal(target_uid, amt)
+            dep["status"] = "confirmed"
+            _save(STORE_DEP_FILE, store_deps)
+            bot.answer_callback_query(call.id, "✅ បានបញ្ចូលលុយ")
+            try:
+                bot.edit_message_caption(
+                    chat_id=ADMIN_ID,
+                    message_id=call.message.message_id,
+                    caption=f"✅ <b>បានបញ្ជាក់ការដាក់ប្រាក់រួចរាល់!</b>\n👤 <code>{target_uid}</code> | 💰 +${amt:.2f}"
+                )
+                bot.send_message(
+                    target_uid,
+                    f"✅ <b>Admin បានបញ្ចូលលុយចូលកាបូបលុយជូនអ្នកជោគជ័យ!</b>\n💰 បញ្ចូល: +${amt:.2f}\n💳 សមតុល្យសរុប: <b>${bal(target_uid):.2f}</b>",
+                    reply_markup=user_kb(target_uid),
+                )
+            except: pass
+        elif act == "reject":
+            dep["status"] = "rejected"
+            _save(STORE_DEP_FILE, store_deps)
+            bot.answer_callback_query(call.id, "❌ បដិសេធ")
+            try:
+                bot.edit_message_caption(
+                    chat_id=ADMIN_ID,
+                    message_id=call.message.message_id,
+                    caption=f"❌ <b>បានបដិសេធសំណើដាក់ប្រាក់!</b>\n👤 <code>{target_uid}</code> | 💰 ${amt:.2f}"
+                )
+                bot.send_message(target_uid, "❌ សំណើដាក់ប្រាក់របស់អ្នកត្រូវបាន Admin បដិសេធ។")
+            except: pass
+        return
 
     elif data.startswith("smm_cat:"):
         parts = data.split(":")
@@ -1014,68 +983,6 @@ def handle_callbacks(call):
             reply_markup=cancel_kb(),
         )
 
-    elif data.startswith("manual_dep:"):
-        if uid != ADMIN_ID: return
-        _, act, dep_id = data.split(":")
-        dep = store_deps.get(dep_id)
-        if not dep:
-            bot.answer_callback_query(call.id, "❌ គ្មានទិន្នន័យ")
-            return
-        target_uid, amt = int(dep["uid"]), float(dep["amount"])
-        if act == "approve":
-            if dep.get("status") == "confirmed":
-                bot.answer_callback_query(call.id, "⚠️ ដាក់រួចហើយ!")
-                return
-            add_bal(target_uid, amt)
-            dep["status"] = "confirmed"
-            _save(STORE_DEP_FILE, store_deps)
-            bot.answer_callback_query(call.id, "✅ បានបញ្ចូលលុយ")
-            try:
-                bot.send_message(
-                    target_uid,
-                    f"✅ <b>Admin បានបញ្ចូលលុយជូន:</b> +${amt:.2f}\n💳 សមតុល្យសរុប: <b>${bal(target_uid):.2f}</b>",
-                )
-            except: pass
-        elif act == "reject":
-            dep["status"] = "rejected"
-            _save(STORE_DEP_FILE, store_deps)
-            bot.answer_callback_query(call.id, "❌ បដិសេធ")
-            try:
-                bot.send_message(target_uid, "❌ សំណើដាក់ប្រាក់ត្រូវបានបដិសេធ។")
-            except: pass
-
-    elif data.startswith("admin_order:"):
-        if uid != ADMIN_ID: return
-        _, act, oid = data.split(":")
-        order = orders_db.get(oid)
-        if not order:
-            bot.answer_callback_query(call.id, "❌ រកមិនឃើញ Order")
-            return
-        target_uid = int(order["uid"])
-        if act == "done":
-            order["status"] = "completed"
-            _save(ORDERS_FILE, orders_db)
-            bot.answer_callback_query(call.id, "✅ បញ្ចប់ Order")
-            bot.edit_message_text(f"✅ Order <code>{oid}</code> ត្រូវបានបញ្ចប់!", chat_id=uid, message_id=call.message.message_id)
-            try:
-                bot.send_message(
-                    target_uid,
-                    f"🎉 <b>Order របស់អ្នកត្រូវបានបញ្ចប់ជោគជ័យ!</b>\n🆔 កូដ: <code>{oid}</code>\n📦 សេវាកម្ម: {order['service_name']}",
-                )
-            except: pass
-        elif act == "cancel":
-            add_bal(target_uid, order["charge"])
-            order["status"] = "canceled"
-            _save(ORDERS_FILE, orders_db)
-            bot.answer_callback_query(call.id, "❌ Cancel & Refund")
-            bot.edit_message_text(f"❌ Order <code>{oid}</code> ត្រូវបាន Refund!", chat_id=uid, message_id=call.message.message_id)
-            try:
-                bot.send_message(
-                    target_uid,
-                    f"⚠️ <b>Order <code>{oid}</code> ត្រូវបានបដិសេធ!</b>\n💰 ប្រាក់បានបង្វិលជូនវិញ: +${order['charge']:.2f}",
-                )
-            except: pass
-
     elif data == "admin_change_api":
         if uid != ADMIN_ID: return
         bot.answer_callback_query(call.id)
@@ -1088,8 +995,51 @@ def handle_callbacks(call):
         bot.send_message(uid, f"💰 <b>សមតុល្យ Provider:</b> <b>{smm_api_balance()}</b>")
 
 # ═══════════════════════════════════════════════════════════
-#  TEXT MESSAGES HANDLER
+#  TEXT MESSAGES & PHOTO HANDLER
 # ═══════════════════════════════════════════════════════════
+@bot.message_handler(content_types=["photo"])
+def handle_photos(message):
+    uid = message.chat.id
+    step = waiting.get(uid)
+    if isinstance(step, dict) and step.get("step") == "wait_slip":
+        dep_id = step["dep_id"]
+        dep = store_deps.get(dep_id)
+        if not dep:
+            waiting.pop(uid, None)
+            bot.send_message(uid, "❌ ទិន្នន័យដាក់ប្រាក់ផុតកំណត់ ឬគ្មានសពុល។", reply_markup=user_kb(uid))
+            return
+
+        amount = dep["amount"]
+        file_id = message.photo[-1].file_id
+        waiting.pop(uid, None)
+
+        bot.send_message(
+            uid,
+            "✅ <b>បានទទួល Slip របស់អ្នករួចរាល់!</b>\n⏳ កំពុងរង់ចាំ Admin ពិនិត្យ និងបញ្ជាក់ការទូទាត់ជូន...",
+            reply_markup=user_kb(uid),
+        )
+
+        admin_kb_dep = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ បញ្ចូលលុយឱ្យ", callback_data=f"manual_dep:approve:{dep_id}"),
+                InlineKeyboardButton("❌ បដិសេធ", callback_data=f"manual_dep:reject:{dep_id}"),
+            ]
+        ])
+        try:
+            bot.send_photo(
+                ADMIN_ID,
+                file_id,
+                caption=f"📥 <b>ការស្នើដាក់លុយ (តាម Slip)!</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"👤 ភ្ញៀវ ID: <code>{uid}</code>\n"
+                        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f} USD</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"👉 សូមពិនិត្យគណនី ABA របស់អ្នក រួចចុចប៊ូតុងខាងក្រោម៖",
+                reply_markup=admin_kb_dep,
+            )
+        except Exception as e:
+            logger.error(f"Send photo to admin error: {e}")
+
 @bot.message_handler(func=lambda m: True)
 def handle_messages(message):
     uid = message.chat.id
@@ -1676,7 +1626,7 @@ def handle_messages(message):
         waiting.pop(uid, None)
         bot.send_message(
             uid,
-            f"💸 <b>បញ្ចូលទឹកប្រាក់ស្វ័យប្រវត្តិតាម Bakong KHQR</b>\n"
+            f"💸 <b>បញ្ចូលទឹកប្រាក់តាម Bakong KHQR (ផ្ញើ Slip)</b>\n"
             f"💳 សមតុល្យបច្ចុប្បន្ន: <b>${bal(uid):.2f}</b>\n\n"
             f"👉 សូមជ្រើសរើសចំនួនប្រាក់ដែលចង់ដាក់៖",
             reply_markup=deposit_amt_kb(),
@@ -1941,7 +1891,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "Khmer SMM Official PayWay QR Mode"})
+    return jsonify({"status": "running", "type": "Khmer SMM Slip Verification Mode"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
