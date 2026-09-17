@@ -58,6 +58,9 @@ MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
+# 💎 កូដ QR String ថេរ (Static KHQR) សម្រាប់គណនីបាគងផ្ទាល់ខ្លួន
+MY_STATIC_QR = "00020101021129190011kh.gov.nbc.bakong0115samnang_mon@bkrt5204599953038405802KH5909KhmerSMM6010Phnom Penh6304"
+
 WALLETS_FILE = "smm_wallets.json"
 USERS_FILE = "smm_users.json"
 ORDERS_FILE = "smm_orders.json"
@@ -79,9 +82,6 @@ DEFAULT_KHMER_SMM = {
     "ig_follow": {"cat": "Instagram", "name": "📸 IG Followers (HQ)", "rate": 1.60, "min": 100, "max": 30000, "api_service_id": 501}
 }
 
-# ═══════════════════════════════════════════════════════════
-#  បញ្ជីហ្គេម Mobile Legends (MLBB) តាមរូបភាព
-# ═══════════════════════════════════════════════════════════
 DEFAULT_GAMES = {
     "mobile_legends": {
         "title": "⚡ Mobile Legends (MLBB)",
@@ -125,6 +125,33 @@ DEFAULT_GAMES = {
             {"id": "ml_36", "name": "💎 6162 Diamonds", "price": 19.79},
             {"id": "ml_37", "name": "💎 7446 Diamonds", "price": 20.87},
             {"id": "ml_38", "name": "💎 9288 Diamonds", "price": 22.16}
+        ]
+    },
+    "free_fire_kh": {
+        "title": "🔥 Free Fire KH/SG",
+        "req_zone": False,
+        "items": [
+            {"id": "ff_1", "name": "🎫 Weekly Pass", "price": 1.54},
+            {"id": "ff_2", "name": "👑 Monthly Membership", "price": 7.59},
+            {"id": "ff_3", "name": "⚡ Weekly Lite", "price": 0.31},
+            {"id": "ff_4", "name": "💎 20 Diamonds", "price": 0.18},
+            {"id": "ff_5", "name": "💎 40 Diamonds", "price": 0.36},
+            {"id": "ff_6", "name": "💎 60 Diamonds", "price": 0.51},
+            {"id": "ff_7", "name": "💎 100 Diamonds", "price": 0.87},
+            {"id": "ff_8", "name": "💎 160 Diamonds", "price": 1.37},
+            {"id": "ff_9", "name": "💎 205 Diamonds", "price": 1.75},
+            {"id": "ff_10", "name": "💎 420 Diamonds", "price": 3.51},
+            {"id": "ff_11", "name": "💎 650 Diamonds", "price": 5.39},
+            {"id": "ff_12", "name": "💎 840 Diamonds", "price": 6.98},
+            {"id": "ff_13", "name": "💎 1100 Diamonds", "price": 8.79},
+            {"id": "ff_14", "name": "💎 2250 Diamonds", "price": 17.85},
+            {"id": "ff_15", "name": "💎 3350 Diamonds", "price": 25.79},
+            {"id": "ff_16", "name": "💎 4500 Diamonds", "price": 33.85},
+            {"id": "ff_17", "name": "💎 4765 Diamonds", "price": 37.19},
+            {"id": "ff_18", "name": "💎 5600 Diamonds", "price": 43.59},
+            {"id": "ff_19", "name": "💎 6700 Diamonds", "price": 50.79},
+            {"id": "ff_20", "name": "💎 7850 Diamonds", "price": 58.96},
+            {"id": "ff_21", "name": "💎 11500 Diamonds", "price": 87.89}
         ]
     }
 }
@@ -194,11 +221,6 @@ def smm_api_balance():
         return f"Error: {resp.get('error', 'Unknown')}"
     except Exception as e:
         return f"Error: {e}"
-
-# ═══════════════════════════════════════════════════════════
-#  STATIC KHQR GENERATOR
-# ═══════════════════════════════════════════════════════════
-MY_STATIC_QR = "00020101021129190011kh.gov.nbc.bakong0115samnang_mon@bkrt5204599953038405802KH5909KhmerSMM6010Phnom Penh6304"
 
 def _generate_khqr(uid, amount, note=""):
     return MY_STATIC_QR
@@ -331,7 +353,7 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
         now = time.time()
         remaining = int(deadline - now)
         dep = store_deps.get(dep_id)
-        if not dep or dep.get("status") != "pending":
+        if not dep or dep.get("status"] != "pending":
             return
 
         if _check_bakong(dep.get("md5", ""), amount, start_ts):
@@ -1917,7 +1939,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Static QR MLBB"})
+    return jsonify({"status": "running", "type": "KhmerSMM Static MLBB & FF"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
