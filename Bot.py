@@ -16,7 +16,7 @@ from telebot.types import (
 )
 
 def _ensure_deps():
-    pkgs = {"PIL": "pillow", "qrcode": "qrcode", "requests": "requests", "bakong_khqr": "bakong-khqr"}
+    pkgs = {"PIL": "pillow", "qrcode": "qrcode", "requests": "requests"}
     for mod, pkg in pkgs.items():
         try:
             __import__(mod)
@@ -39,7 +39,6 @@ _ensure_deps()
 from PIL import Image, ImageDraw, ImageFont
 import qrcode
 import requests
-from bakong_khqr import KHQR
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
@@ -47,19 +46,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════
-#  CONFIG & OFFICIAL ABA PAYWAY KHQR STRING
+#  CONFIG
 # ═══════════════════════════════════════════════════════════
 BOT_TOKEN = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
 ADMIN_ID = 5915683588
 
 BAKONG_TOKEN = "rbkMVUSQPooaey51jm1cD5ECnzmHyeNX7fBX4Afc16GU8k"
-BANK_ACCOUNT = "mon_samnang@bkrt"
-MERCHANT_NAME = "Khmer SMM"
+BANK_ACCOUNT = "samnang_mon@bkrt"
+MERCHANT_NAME = "KhmerSMM"
 MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
-
-# 💎 កូដ KHQR ផ្លូវការរបស់អ្នក
-MY_STATIC_QR = "00020101021130510016abaabkrhppxxx@abaa01151260903142910660208ABA Bank5204651353038405802KH5911MON SAMNANG6012KAMPONG THOM624268380010PAYWAY@ABA01071950962020903248607663044150"
+POLL_INTERVAL = 5
 
 WALLETS_FILE = "smm_wallets.json"
 USERS_FILE = "smm_users.json"
@@ -74,86 +71,20 @@ DISCOUNTS_FILE = "smm_discounts.json"
 DEFAULT_KHMER_SMM = {
     "fb_like_kh": {"cat": "Facebook", "name": "👍 FB Likes ខ្មែរ Real", "rate": 1.50, "min": 50, "max": 20000, "api_service_id": 101},
     "fb_like_mix": {"cat": "Facebook", "name": "👍 FB Likes Mix Global", "rate": 0.80, "min": 100, "max": 100000, "api_service_id": 102},
+    "fb_react_love": {"cat": "Facebook", "name": "❤️ FB React Love", "rate": 1.20, "min": 50, "max": 20000, "api_service_id": 103},
+    "fb_react_haha": {"cat": "Facebook", "name": "😆 FB React Haha", "rate": 1.20, "min": 50, "max": 20000, "api_service_id": 104},
     "fb_page_fol": {"cat": "Facebook", "name": "👥 FB Page Followers", "rate": 2.20, "min": 100, "max": 50000, "api_service_id": 106},
+    "fb_prof_fol": {"cat": "Facebook", "name": "👤 FB Profile Followers", "rate": 1.90, "min": 100, "max": 50000, "api_service_id": 107},
+    "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
+    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
+    "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
+    "tt_follow": {"cat": "TikTok", "name": "👥 TikTok Followers (មិនស្រក)", "rate": 2.80, "min": 100, "max": 20000, "api_service_id": 203},
     "tg_member": {"cat": "Telegram", "name": "✈️ Telegram Members", "rate": 1.80, "min": 100, "max": 50000, "api_service_id": 301},
+    "tg_post_view": {"cat": "Telegram", "name": "👁 TG Post Views", "rate": 0.10, "min": 100, "max": 100000, "api_service_id": 302},
     "yt_view": {"cat": "YouTube", "name": "👁 YouTube Views", "rate": 1.80, "min": 500, "max": 50000, "api_service_id": 401},
     "ig_follow": {"cat": "Instagram", "name": "📸 IG Followers (HQ)", "rate": 1.60, "min": 100, "max": 30000, "api_service_id": 501}
-}
-
-DEFAULT_GAMES = {
-    "mobile_legends": {
-        "title": "⚡ Mobile Legends (MLBB)",
-        "req_zone": True,
-        "items": [
-            {"id": "ml_1", "name": "📦 Monthly Elite Pass", "price": 2.92},
-            {"id": "ml_2", "name": "👑 Twilight Pass", "price": 7.60},
-            {"id": "ml_3", "name": "🎫 Weekly Diamond Pass", "price": 1.47},
-            {"id": "ml_4", "name": "🎫 Weekly Elite Pack", "price": 0.78},
-            {"id": "ml_5", "name": "💎 2x Weekly", "price": 2.94},
-            {"id": "ml_6", "name": "💎 3x Weekly", "price": 4.41},
-            {"id": "ml_7", "name": "💎 4x Weekly", "price": 5.98},
-            {"id": "ml_8", "name": "💎 5x Weekly", "price": 7.35},
-            {"id": "ml_9", "name": "💎 86 Diamonds", "price": 0.75},
-            {"id": "ml_10", "name": "💎 172 Diamonds", "price": 1.19},
-            {"id": "ml_11", "name": "💎 257 Diamonds", "price": 1.60},
-            {"id": "ml_12", "name": "💎 344 Diamonds", "price": 2.25},
-            {"id": "ml_13", "name": "💎 429 Diamonds", "price": 2.27},
-            {"id": "ml_14", "name": "💎 514 Diamonds", "price": 3.29},
-            {"id": "ml_15", "name": "💎 600 Diamonds", "price": 2.65},
-            {"id": "ml_16", "name": "💎 706 Diamonds", "price": 4.58},
-            {"id": "ml_17", "name": "💎 878 Diamonds", "price": 4.73},
-            {"id": "ml_18", "name": "💎 964 Diamonds", "price": 5.75},
-            {"id": "ml_19", "name": "💎 1050 Diamonds", "price": 5.92},
-            {"id": "ml_20", "name": "💎 1136 Diamonds", "price": 6.79},
-            {"id": "ml_21", "name": "💎 1220 Diamonds", "price": 7.09},
-            {"id": "ml_22", "name": "💎 1412 Diamonds", "price": 7.50},
-            {"id": "ml_23", "name": "💎 1566 Diamonds", "price": 7.97},
-            {"id": "ml_24", "name": "💎 1652 Diamonds", "price": 8.28},
-            {"id": "ml_25", "name": "💎 1860 Diamonds", "price": 9.20},
-            {"id": "ml_26", "name": "💎 2195 Diamonds", "price": 10.50},
-            {"id": "ml_27", "name": "💎 2382 Diamonds", "price": 11.66},
-            {"id": "ml_28", "name": "💎 2568 Diamonds", "price": 12.69},
-            {"id": "ml_29", "name": "💎 2901 Diamonds", "price": 12.86},
-            {"id": "ml_30", "name": "💎 3088 Diamonds", "price": 14.03},
-            {"id": "ml_31", "name": "💎 3688 Diamonds", "price": 14.11},
-            {"id": "ml_32", "name": "💎 4032 Diamonds", "price": 15.22},
-            {"id": "ml_33", "name": "💎 4394 Diamonds", "price": 16.40},
-            {"id": "ml_34", "name": "💎 4830 Diamonds", "price": 17.59},
-            {"id": "ml_35", "name": "💎 5532 Diamonds", "price": 18.60},
-            {"id": "ml_36", "name": "💎 6162 Diamonds", "price": 19.79},
-            {"id": "ml_37", "name": "💎 7446 Diamonds", "price": 20.87},
-            {"id": "ml_38", "name": "💎 9288 Diamonds", "price": 22.16}
-        ]
-    },
-    "free_fire_kh": {
-        "title": "🔥 Free Fire KH/SG",
-        "req_zone": False,
-        "items": [
-            {"id": "ff_1", "name": "🎫 Weekly Pass", "price": 1.54},
-            {"id": "ff_2", "name": "👑 Monthly Membership", "price": 7.59},
-            {"id": "ff_3", "name": "⚡ Weekly Lite", "price": 0.31},
-            {"id": "ff_4", "name": "💎 20 Diamonds", "price": 0.18},
-            {"id": "ff_5", "name": "💎 40 Diamonds", "price": 0.36},
-            {"id": "ff_6", "name": "💎 60 Diamonds", "price": 0.51},
-            {"id": "ff_7", "name": "💎 100 Diamonds", "price": 0.87},
-            {"id": "ff_8", "name": "💎 160 Diamonds", "price": 1.37},
-            {"id": "ff_9", "name": "💎 205 Diamonds", "price": 1.75},
-            {"id": "ff_10", "name": "💎 420 Diamonds", "price": 3.51},
-            {"id": "ff_11", "name": "💎 650 Diamonds", "price": 5.39},
-            {"id": "ff_12", "name": "💎 840 Diamonds", "price": 6.98},
-            {"id": "ff_13", "name": "💎 1100 Diamonds", "price": 8.79},
-            {"id": "ff_14", "name": "💎 2250 Diamonds", "price": 17.85},
-            {"id": "ff_15", "name": "💎 3350 Diamonds", "price": 25.79},
-            {"id": "ff_16", "name": "💎 4500 Diamonds", "price": 33.85},
-            {"id": "ff_17", "name": "💎 4765 Diamonds", "price": 37.19},
-            {"id": "ff_18", "name": "💎 5600 Diamonds", "price": 43.59},
-            {"id": "ff_19", "name": "💎 6700 Diamonds", "price": 50.79},
-            {"id": "ff_20", "name": "💎 7850 Diamonds", "price": 58.96},
-            {"id": "ff_21", "name": "💎 11500 Diamonds", "price": 87.89}
-        ]
-    }
 }
 
 def _load(path, default):
@@ -175,7 +106,7 @@ wallets = _load(WALLETS_FILE, {})
 users_db = _load(USERS_FILE, {})
 orders_db = _load(ORDERS_FILE, {})
 services_db = _load(SERVICES_FILE, DEFAULT_KHMER_SMM)
-games_db = _load(GAMES_FILE, DEFAULT_GAMES)
+games_db = _load(GAMES_FILE, {})
 accounts_db = _load(ACCOUNTS_FILE, {})
 store_deps = _load(STORE_DEP_FILE, {})
 api_cfg = _load(API_CONFIG_FILE, {"api_url": "", "api_key": ""})
@@ -223,9 +154,74 @@ def smm_api_balance():
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
+#  DYNAMIC KHQR GENERATOR (ចាក់សោចំនួនទឹកប្រាក់ស្វ័យប្រវត្តិ)
+# ═══════════════════════════════════════════════════════════
+def _crc16_khqr(data: str) -> str:
+    crc = 0xFFFF
+    for ch in data:
+        crc ^= (ord(ch) << 8)
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return f"{crc:04X}"
+
+def _build_dynamic_khqr(account_id: str, amount: float) -> str:
+    def tag(tid: int, val: str) -> str:
+        val_str = str(val)
+        return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
+
+    sub29 = tag(0, "kh.gov.nbc.bakong") + tag(1, account_id)
+    tag29 = tag(29, sub29)
+    amt_str = f"{amount:.2f}"
+
+    # Tag 01 = "12" គឺ Dynamic QR (ចាក់សោលុយមិនឱ្យភ្ញៀវកែ)
+    # Tag 54 = ចំនួនទឹកប្រាក់ជាក់លាក់
+    payload = (
+        tag(0, "01") +
+        tag(1, "12") +
+        tag29 +
+        tag(52, "5999") +
+        tag(53, "840") +
+        tag(54, amt_str) +
+        tag(58, "KH") +
+        tag(59, MERCHANT_NAME) +
+        tag(60, MERCHANT_CITY) +
+        "6304"
+    )
+    return payload + _crc16_khqr(payload)
+
+def _generate_khqr(uid, amount, note=""):
+    try:
+        from bakong_khqr import KHQR
+        qr = KHQR(BAKONG_TOKEN).create_qr(
+            bank_account=BANK_ACCOUNT,
+            merchant_name=MERCHANT_NAME,
+            merchant_city=MERCHANT_CITY,
+            amount=round(float(amount), 2),
+            currency="USD",
+            bill_number=(note or f"uid{uid}")[:25],
+            static=False,
+        )
+        if qr and qr.startswith("000201"):
+            return qr
+    except Exception:
+        pass
+    
+    return _build_dynamic_khqr(BANK_ACCOUNT, round(float(amount), 2))
+
+def _check_bakong(md5, amount, start_ts):
+    try:
+        from bakong_khqr import KHQR as _BK
+        return _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID"
+    except Exception:
+        return False
+
+# ═══════════════════════════════════════════════════════════
 #  DRAW STYLED ABA PAY TEMPLATE
 # ═══════════════════════════════════════════════════════════
-def _generate_styled_khqr_image(qr_str, amount, merchant_name="Khmer SMM"):
+def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     card_w, card_h = 750, 1150
     card = Image.new("RGBA", (card_w, card_h), "#FFFFFF")
     draw = ImageDraw.Draw(card)
@@ -304,7 +300,7 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="Khmer SMM"):
     draw.ellipse([(qr_cx - 27, qr_cy - 27), (qr_cx + 27, qr_cy + 27)], fill="#000000")
     draw.text((qr_cx, qr_cy), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
 
-    draw.text((card_w // 2, box_y2 + 65), merchant_name, fill="#1a2530", font=font_name, anchor="mm")
+    draw.text((card_w // 2, box_y2 + 65), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
     draw.text((card_w // 2, box_y2 + 125), f"AMOUNT: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
 
     overlay = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
@@ -323,40 +319,125 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="Khmer SMM"):
     buf.seek(0)
     return buf
 
+def _build_caption(amount, remaining_sec):
+    mins, secs = max(0, remaining_sec // 60), max(0, remaining_sec % 60)
+    return (
+        f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"👤 ឈ្មោះគណនី: <b>KhmerSMM</b>\n"
+        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f} USD</b>\n"
+        f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📱 Scan ជាមួយ ABA, Bakong, Wing ដើម្បីទូទាត់ភ្លាមៗ (ទឹកប្រាក់នឹងលោតស្វ័យប្រវត្តិ)"
+    )
+
+def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
+    deadline = start_ts + DEPOSIT_EXPIRE_SEC
+    last_edit = 0
+
+    while time.time() < deadline:
+        now = time.time()
+        remaining = int(deadline - now)
+        dep = store_deps.get(dep_id)
+        if not dep or dep.get("status") != "pending":
+            return
+
+        if _check_bakong(dep.get("md5", ""), amount, start_ts):
+            add_bal(uid, round(amount, 2))
+            dep["status"] = "confirmed"
+            _save(STORE_DEP_FILE, store_deps)
+            try:
+                bot.edit_message_caption(
+                    chat_id=uid,
+                    message_id=msg_id,
+                    caption=f"✅ <b>ការទូទាត់ទទួលបានជោគជ័យ!</b>\n💰 បញ្ចូល: +${amount:.2f}",
+                )
+                bot.send_message(
+                    uid,
+                    f"✅ <b>ដាក់ប្រាក់ជោគជ័យ!</b>\n💰 +${amount:.2f}\n💳 សមតុល្យសរុប: <b>${bal(uid):.2f}</b>",
+                    reply_markup=user_kb(uid),
+                )
+                bot.send_message(
+                    ADMIN_ID, f"💰 <b>Auto KHQR</b>\n👤 <code>{uid_str}</code> | +${amount:.2f}"
+                )
+            except:
+                pass
+            return
+
+        if now - last_edit >= 10 and msg_id:
+            try:
+                bot.edit_message_caption(
+                    chat_id=uid,
+                    message_id=msg_id,
+                    caption=_build_caption(amount, remaining),
+                )
+                last_edit = now
+            except:
+                pass
+        time.sleep(POLL_INTERVAL)
+
+    dep = store_deps.get(dep_id)
+    if dep and dep.get("status") == "pending":
+        dep["status"] = "expired"
+        _save(STORE_DEP_FILE, store_deps)
+        try:
+            bot.edit_message_caption(
+                chat_id=uid,
+                message_id=msg_id,
+                caption="❌ <b>QR ផុតកំណត់ហើយ!</b> សូមស្នើសុំម្ដងទៀត។",
+            )
+        except:
+            pass
+
 def _send_deposit_qr(uid, amount):
     uid_str = str(uid)
+    qr_str = _generate_khqr(uid, amount, f"uid={uid} ${amount}")
+    if not qr_str:
+        bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
+        return
+
+    import hashlib
+    md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
+
     dep_id = f"dep_{uid}_{int(time.time())}"
-    
     store_deps[dep_id] = {
         "uid": uid_str,
         "amount": amount,
         "status": "pending",
-        "time": int(time.time())
+        "md5": md5_hash,
+        "qr_str": qr_str,
     }
     _save(STORE_DEP_FILE, store_deps)
 
-    caption = (
-        f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"👤 ឈ្មោះ: <b>Khmer SMM</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់ត្រូវបង់: <b>${amount:.2f} USD</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 <b>វិធីបង់ប្រាក់៖</b>\n"
-        f"1. Scan QR ខាងក្រោមតាម ABA ឬគ្រប់ធនាគារ\n"
-        f"2. បង់ប្រាក់ចំនួន <b>${amount:.2f}</b>\n"
-        f"3. ចុចប៊ូតុង <b>«📤 ផ្ញើ Slip បញ្ជាក់ការបង់ប្រាក់»</b> ខាងក្រោមដើម្បីឱ្យ Admin បញ្ចូលលុយជូនភ្លាមៗ!"
-    )
-
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 ផ្ញើ Slip បញ្ជាក់ការបង់ប្រាក់", callback_data=f"send_slip:{dep_id}")],
-        [InlineKeyboardButton("❌ បោះបង់", callback_data=f"cancel_dep:{dep_id}")]
+    admin_kb_dep = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ បញ្ចូលលុយឱ្យ", callback_data=f"manual_dep:approve:{dep_id}"),
+            InlineKeyboardButton("❌ បដិសេធ", callback_data=f"manual_dep:reject:{dep_id}"),
+        ]
     ])
+    try:
+        bot.send_message(
+            ADMIN_ID,
+            f"📥 <b>ការស្នើដាក់លុយ!</b>\n👤 <code>{uid_str}</code> | 💰 <b>${amount:.2f}</b>",
+            reply_markup=admin_kb_dep,
+        )
+    except:
+        pass
 
     try:
-        buf = _generate_styled_khqr_image(MY_STATIC_QR, amount, "Khmer SMM")
-        bot.send_photo(uid, buf, caption=caption, reply_markup=kb)
-    except Exception as e:
-        bot.send_message(uid, caption + f"\n\n<code>{MY_STATIC_QR}</code>", reply_markup=kb)
+        buf = _generate_styled_khqr_image(qr_str, amount, "KhmerSMM")
+        sent = bot.send_photo(uid, buf, caption=_build_caption(amount, DEPOSIT_EXPIRE_SEC))
+    except Exception:
+        sent = bot.send_message(
+            uid, _build_caption(amount, DEPOSIT_EXPIRE_SEC) + f"\n\n<code>{qr_str}</code>"
+        )
+
+    msg_id = sent.message_id if sent else None
+    threading.Thread(
+        target=_watch_deposit_and_countdown,
+        args=(uid, uid_str, dep_id, amount, msg_id, int(time.time())),
+        daemon=True,
+    ).start()
 
 # ═══════════════════════════════════════════════════════════
 #  KEYBOARDS
@@ -404,7 +485,7 @@ def deposit_amt_kb():
     btns = [
         [InlineKeyboardButton("💵 $1.00", callback_data="dep:1"), InlineKeyboardButton("💵 $2.00", callback_data="dep:2"), InlineKeyboardButton("💵 $5.00", callback_data="dep:5")],
         [InlineKeyboardButton("💵 $10.00", callback_data="dep:10"), InlineKeyboardButton("💵 $20.00", callback_data="dep:20"), InlineKeyboardButton("💵 $50.00", callback_data="dep:50")],
-        [InlineKeyboardButton("✏️ បញ្ចូលចំនួនទឹកប្រាក់ផ្ទាល់ខ្លួន", callback_data="dep:custom")]
+        [InlineKeyboardButton("✏️ បញ្ចូលចំនួនទឹកប្រាក់ផ្សេងទៀត", callback_data="dep:custom")]
     ]
     return InlineKeyboardMarkup(btns)
 
@@ -555,75 +636,9 @@ def handle_callbacks(call):
         bot.answer_callback_query(call.id)
         if val == "custom":
             waiting[uid] = "dep_custom"
-            bot.send_message(uid, "✏️ <b>សូមផ្ញើចំនួនទឹកប្រាក់ ($) ដែលចង់ដាក់:</b>", reply_markup=cancel_kb())
+            bot.send_message(uid, "✏️ <b>សូមផ្ញើចំនួនទឹកប្រាក់ ($) ដែលចង់ដាក់:</b>\n<i>ឧទាហរណ៍៖ 3.50 ឬ 15</i>", reply_markup=cancel_kb())
             return
         _send_deposit_qr(uid, float(val))
-
-    elif data.startswith("send_slip:"):
-        dep_id = data.split(":")[1]
-        bot.answer_callback_query(call.id)
-        waiting[uid] = {"step": "wait_slip", "dep_id": dep_id}
-        bot.send_message(
-            uid,
-            "📤 <b>សូមផ្ញើរូបភាពសន្លឹកបង់ប្រាក់ (Slip) របស់អ្នកមកទីនេះ៖</b>",
-            reply_markup=cancel_kb(),
-        )
-        return
-
-    elif data.startswith("cancel_dep:"):
-        dep_id = data.split(":")[1]
-        if dep_id in store_deps:
-            store_deps[dep_id]["status"] = "canceled"
-            _save(STORE_DEP_FILE, store_deps)
-        bot.answer_callback_query(call.id, "❌ បានបោះបង់ការដាក់ប្រាក់")
-        try:
-            bot.delete_message(uid, call.message.message_id)
-        except:
-            pass
-        bot.send_message(uid, "🏠 ត្រឡប់មកកាន់ផ្ទាំងដើមវិញ", reply_markup=user_kb(uid))
-        return
-
-    elif data.startswith("manual_dep:"):
-        if uid != ADMIN_ID: return
-        _, act, dep_id = data.split(":")
-        dep = store_deps.get(dep_id)
-        if not dep:
-            bot.answer_callback_query(call.id, "❌ គ្មានទិន្នន័យ")
-            return
-        target_uid, amt = int(dep["uid"]), float(dep["amount"])
-        if act == "approve":
-            if dep.get("status") == "confirmed":
-                bot.answer_callback_query(call.id, "⚠️ ដាក់រួចហើយ!")
-                return
-            add_bal(target_uid, amt)
-            dep["status"] = "confirmed"
-            _save(STORE_DEP_FILE, store_deps)
-            bot.answer_callback_query(call.id, "✅ បានបញ្ចូលលុយ")
-            try:
-                bot.edit_message_caption(
-                    chat_id=ADMIN_ID,
-                    message_id=call.message.message_id,
-                    caption=f"✅ <b>បានបញ្ជាក់ការដាក់ប្រាក់រួចរាល់!</b>\n👤 <code>{target_uid}</code> | 💰 +${amt:.2f}"
-                )
-                bot.send_message(
-                    target_uid,
-                    f"✅ <b>Admin បានបញ្ចូលលុយចូលកាបូបលុយជូនអ្នកជោគជ័យ!</b>\n💰 បញ្ចូល: +${amt:.2f}\n💳 សមតុល្យសរុប: <b>${bal(target_uid):.2f}</b>",
-                    reply_markup=user_kb(target_uid),
-                )
-            except: pass
-        elif act == "reject":
-            dep["status"] = "rejected"
-            _save(STORE_DEP_FILE, store_deps)
-            bot.answer_callback_query(call.id, "❌ បដិសេធ")
-            try:
-                bot.edit_message_caption(
-                    chat_id=ADMIN_ID,
-                    message_id=call.message.message_id,
-                    caption=f"❌ <b>បានបដិសេធសំណើដាក់ប្រាក់!</b>\n👤 <code>{target_uid}</code> | 💰 ${amt:.2f}"
-                )
-                bot.send_message(target_uid, "❌ សំណើដាក់ប្រាក់របស់អ្នកត្រូវបាន Admin បដិសេធ។")
-            except: pass
-        return
 
     elif data.startswith("smm_cat:"):
         parts = data.split(":")
@@ -983,6 +998,68 @@ def handle_callbacks(call):
             reply_markup=cancel_kb(),
         )
 
+    elif data.startswith("manual_dep:"):
+        if uid != ADMIN_ID: return
+        _, act, dep_id = data.split(":")
+        dep = store_deps.get(dep_id)
+        if not dep:
+            bot.answer_callback_query(call.id, "❌ គ្មានទិន្នន័យ")
+            return
+        target_uid, amt = int(dep["uid"]), float(dep["amount"])
+        if act == "approve":
+            if dep.get("status") == "confirmed":
+                bot.answer_callback_query(call.id, "⚠️ ដាក់រួចហើយ!")
+                return
+            add_bal(target_uid, amt)
+            dep["status"] = "confirmed"
+            _save(STORE_DEP_FILE, store_deps)
+            bot.answer_callback_query(call.id, "✅ បានបញ្ចូលលុយ")
+            try:
+                bot.send_message(
+                    target_uid,
+                    f"✅ <b>Admin បានបញ្ចូលលុយជូន:</b> +${amt:.2f}\n💳 សមតុល្យសរុប: <b>${bal(target_uid):.2f}</b>",
+                )
+            except: pass
+        elif act == "reject":
+            dep["status"] = "rejected"
+            _save(STORE_DEP_FILE, store_deps)
+            bot.answer_callback_query(call.id, "❌ បដិសេធ")
+            try:
+                bot.send_message(target_uid, "❌ សំណើដាក់ប្រាក់ត្រូវបានបដិសេធ។")
+            except: pass
+
+    elif data.startswith("admin_order:"):
+        if uid != ADMIN_ID: return
+        _, act, oid = data.split(":")
+        order = orders_db.get(oid)
+        if not order:
+            bot.answer_callback_query(call.id, "❌ រកមិនឃើញ Order")
+            return
+        target_uid = int(order["uid"])
+        if act == "done":
+            order["status"] = "completed"
+            _save(ORDERS_FILE, orders_db)
+            bot.answer_callback_query(call.id, "✅ បញ្ចប់ Order")
+            bot.edit_message_text(f"✅ Order <code>{oid}</code> ត្រូវបានបញ្ចប់!", chat_id=uid, message_id=call.message.message_id)
+            try:
+                bot.send_message(
+                    target_uid,
+                    f"🎉 <b>Order របស់អ្នកត្រូវបានបញ្ចប់ជោគជ័យ!</b>\n🆔 កូដ: <code>{oid}</code>\n📦 សេវាកម្ម: {order['service_name']}",
+                )
+            except: pass
+        elif act == "cancel":
+            add_bal(target_uid, order["charge"])
+            order["status"] = "canceled"
+            _save(ORDERS_FILE, orders_db)
+            bot.answer_callback_query(call.id, "❌ Cancel & Refund")
+            bot.edit_message_text(f"❌ Order <code>{oid}</code> ត្រូវបាន Refund!", chat_id=uid, message_id=call.message.message_id)
+            try:
+                bot.send_message(
+                    target_uid,
+                    f"⚠️ <b>Order <code>{oid}</code> ត្រូវបានបដិសេធ!</b>\n💰 ប្រាក់បានបង្វិលជូនវិញ: +${order['charge']:.2f}",
+                )
+            except: pass
+
     elif data == "admin_change_api":
         if uid != ADMIN_ID: return
         bot.answer_callback_query(call.id)
@@ -995,51 +1072,8 @@ def handle_callbacks(call):
         bot.send_message(uid, f"💰 <b>សមតុល្យ Provider:</b> <b>{smm_api_balance()}</b>")
 
 # ═══════════════════════════════════════════════════════════
-#  TEXT MESSAGES & PHOTO HANDLER
+#  TEXT MESSAGES HANDLER
 # ═══════════════════════════════════════════════════════════
-@bot.message_handler(content_types=["photo"])
-def handle_photos(message):
-    uid = message.chat.id
-    step = waiting.get(uid)
-    if isinstance(step, dict) and step.get("step") == "wait_slip":
-        dep_id = step["dep_id"]
-        dep = store_deps.get(dep_id)
-        if not dep:
-            waiting.pop(uid, None)
-            bot.send_message(uid, "❌ ទិន្នន័យដាក់ប្រាក់ផុតកំណត់ ឬគ្មានសពុល។", reply_markup=user_kb(uid))
-            return
-
-        amount = dep["amount"]
-        file_id = message.photo[-1].file_id
-        waiting.pop(uid, None)
-
-        bot.send_message(
-            uid,
-            "✅ <b>បានទទួល Slip របស់អ្នករួចរាល់!</b>\n⏳ កំពុងរង់ចាំ Admin ពិនិត្យ និងបញ្ជាក់ការទូទាត់ជូន...",
-            reply_markup=user_kb(uid),
-        )
-
-        admin_kb_dep = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("✅ បញ្ចូលលុយឱ្យ", callback_data=f"manual_dep:approve:{dep_id}"),
-                InlineKeyboardButton("❌ បដិសេធ", callback_data=f"manual_dep:reject:{dep_id}"),
-            ]
-        ])
-        try:
-            bot.send_photo(
-                ADMIN_ID,
-                file_id,
-                caption=f"📥 <b>ការស្នើដាក់លុយ (តាម Slip)!</b>\n"
-                        f"━━━━━━━━━━━━━━━━━━\n"
-                        f"👤 ភ្ញៀវ ID: <code>{uid}</code>\n"
-                        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f} USD</b>\n"
-                        f"━━━━━━━━━━━━━━━━━━\n"
-                        f"👉 សូមពិនិត្យគណនី ABA របស់អ្នក រួចចុចប៊ូតុងខាងក្រោម៖",
-                reply_markup=admin_kb_dep,
-            )
-        except Exception as e:
-            logger.error(f"Send photo to admin error: {e}")
-
 @bot.message_handler(func=lambda m: True)
 def handle_messages(message):
     uid = message.chat.id
@@ -1626,7 +1660,7 @@ def handle_messages(message):
         waiting.pop(uid, None)
         bot.send_message(
             uid,
-            f"💸 <b>បញ្ចូលទឹកប្រាក់តាម Bakong KHQR (ផ្ញើ Slip)</b>\n"
+            f"💸 <b>បញ្ចូលទឹកប្រាក់ស្វ័យប្រវត្តិតាម Bakong KHQR</b>\n"
             f"💳 សមតុល្យបច្ចុប្បន្ន: <b>${bal(uid):.2f}</b>\n\n"
             f"👉 សូមជ្រើសរើសចំនួនប្រាក់ដែលចង់ដាក់៖",
             reply_markup=deposit_amt_kb(),
@@ -1891,7 +1925,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "Khmer SMM Slip Verification Mode"})
+    return jsonify({"status": "running", "type": "KhmerSMM Dynamic KHQR Mode"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
