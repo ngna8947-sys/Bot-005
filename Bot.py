@@ -59,7 +59,7 @@ MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
-# 💎 កូដ Static KHQR ស្ដង់ដារថេរ ១០០% ត្រូវនឹង mon_samnang@bkrt (មិនខុស Format ធនាគារឡើយ)
+# 💎 កូដ Static KHQR ស្ដង់ដារថេរ 100% ត្រូវនឹង mon_samnang@bkrt របស់អ្នក
 MY_STATIC_QR = "00020101021129190011kh.gov.nbc.bakong0115mon_samnang@bkrt5204599953038405802KH5909KhmerSMM6010Phnom Penh6304"
 
 WALLETS_FILE = "smm_wallets.json"
@@ -1918,7 +1918,7 @@ def handle_messages(message):
 
         if text == "📢 ផ្សព្វផ្សាយ":
             waiting[uid] = "broadcast"
-            bot.send_message(uid, "📢 ផ្ញើសារដែលចង់ Broadcast:", reply_markup=cancel_kb())
+            bot.send_message(uid, "📢 ផ្ើសារដែលចង់ Broadcast:", reply_markup=cancel_kb())
             return
 
         if step == "broadcast":
