@@ -52,9 +52,6 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
 ADMIN_ID = 5915683588
 
-# ✅ កូដ ABA KHQR ផ្លូវការពិតប្រាកដដែលស្កេនបានពី ABA Mobile
-ABA_STATIC_KHQR = "00020101021130510016abaakhppxxx@abaa01151260903142910660208ABA Bank5204651353038405802KH5911MON SAMNANG6012KAMPONG THOM624268380010PAYWAY@ABA01071950962020903248607663044150"
-
 MERCHANT_NAME = "KhmerSMM"
 MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
@@ -133,11 +130,51 @@ def get_disc_price(orig_price, disc_percent):
     if disc_percent <= 0: return orig_price
     return max(0.01, round(orig_price * (1 - disc_percent / 100.0), 2))
 
+# ═══════════════════════════════════════════════════════════
+#  DYNAMIC ABA KHQR GENERATOR (ចាក់សោចំនួនទឹកប្រាក់ស្វ័យប្រវត្តិ)
+# ═══════════════════════════════════════════════════════════
+def _crc16_ccitt(data: bytes) -> str:
+    crc = 0xFFFF
+    for byte in data:
+        crc ^= (byte << 8)
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return f"{crc:04X}"
+
 def _generate_khqr(uid, amount, note=""):
-    return ABA_STATIC_KHQR
+    """
+    បង្កើតកូដ Dynamic KHQR តាមកុង ABA ពិតប្រាកដរបស់ Mon Samnang
+    ដោយចាក់សោតម្លៃទឹកប្រាក់ (Tag 54) ភ្ញៀវស្កេនទៅឃើញចំនួនលុយស្រាប់ មិនបាច់វាយទេ។
+    """
+    try:
+        amt_str = f"{float(amount):.2f}"
+        tag54 = f"54{len(amt_str):02d}{amt_str}"
+        
+        # Payload បំប្លែងចេញពីគណនី ABA Bank របស់អ្នក (Point of Initiation = 12 Dynamic)
+        prefix = (
+            "000201"
+            "010212"
+            "30510016abaakhppxxx@abaa01151260903142910660208ABA Bank"
+            "52046513"
+            "5303840"
+            + tag54 +
+            "5802KH"
+            "5911MON SAMNANG"
+            "6012KAMPONG THOM"
+            "624268380010PAYWAY@ABA010719509620209032486076"
+            "6304"
+        )
+        crc = _crc16_ccitt(prefix.encode("utf-8"))
+        return prefix + crc
+    except Exception as e:
+        logger.error(f"Generate Dynamic KHQR Error: {e}")
+        return ""
 
 # ═══════════════════════════════════════════════════════════
-#  DRAW STYLED ABA PAY TEMPLATE (ABA BANK KHQR)
+#  DRAW STYLED ABA PAY TEMPLATE
 # ═══════════════════════════════════════════════════════════
 def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     card_w, card_h = 750, 1050
@@ -151,7 +188,7 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
             font_aba = ImageFont.truetype(f_bold, 54)
             font_name = ImageFont.truetype(f_bold, 40)
             font_khqr_small = ImageFont.truetype(f_bold, 28)
-            font_amt = ImageFont.truetype(f_bold, 30)
+            font_amt = ImageFont.truetype(f_bold, 32)
             font_dollar = ImageFont.truetype(f_bold, 32)
             break
         except: pass
@@ -221,10 +258,10 @@ def _build_caption(amount, remaining_sec):
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 ឈ្មោះគណនី: <b>MON SAMNANG</b>\n"
-        f"💰 ចំនួនត្រូវបាញ់: <b>${amount:.2f}</b>\n"
+        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b> (បានកំណត់ស្វ័យប្រវត្តក្នុង QR)\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ ABA, Bakong, Wing ឬគ្រប់ធនាគារទាំងអស់"
+        f"📱 Scan ជាមួយ ABA, Bakong, Wing ឬគ្រប់ធនាគារ (មិនបាច់វាយចំនួនលុយទេ)"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -288,7 +325,7 @@ def _send_deposit_qr(uid, amount):
             ADMIN_ID,
             f"📥 <b>ការស្នើដាក់លុយ!</b>\n"
             f"👤 <code>{uid_str}</code> | 💰 <b>${amount:.2f}</b>\n"
-            f"👉 <i>(សូមពិនិត្យមើល App ABA របស់អ្នក ពេលឃើញលុយចូលពិត សូមចុចប៊ូតុងខាងក្រោម)</i>",
+            f"👉 <i>(ពិនិត្យ App ABA របស់អ្នក ពេលឃើញលុយចូលពិត ចុចប៊ូតុងខាងក្រោម)</i>",
             reply_markup=admin_kb_dep,
         )
     except: pass
@@ -1525,7 +1562,7 @@ def handle_messages(message):
         waiting.pop(uid, None)
         bot.send_message(
             uid,
-            f"💸 <b>បញ្ចូលទឹកប្រាក់ស្វ័យប្រវត្តិតាម Bakong / ABA KHQR</b>\n"
+            f"💸 <b>បញ្ចូលទឹកប្រាក់ស្វ័យប្រវត្តិតាម ABA KHQR</b>\n"
             f"💳 សមតុល្យបច្ចុប្បន្ន: <b>${bal(uid):.2f}</b>\n\n"
             f"👉 សូមជ្រើសរើសចំនួនប្រាក់ដែលចង់ដាក់៖",
             reply_markup=deposit_amt_kb(),
@@ -1790,7 +1827,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Bot - ABA Bank Verified"})
+    return jsonify({"status": "running", "type": "KhmerSMM Dynamic Locked Amount KHQR"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
