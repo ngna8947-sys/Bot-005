@@ -41,7 +41,6 @@ POLL_INTERVAL      = 5
 # ═══════════════════════════════════════════════════════════
 WALLETS_FILE     = "aio_wallets.json"
 USERS_FILE       = "aio_users.json"
-MOVIES_FILE      = "movies_db.json"
 STORE_DEP_FILE   = "aio_store_deposits.json"
 STORE_ITEMS_FILE = "aio_store_items.json"
 
@@ -58,7 +57,6 @@ def _save(path, data):
 
 wallets    = _load(WALLETS_FILE, {})
 users_db   = _load(USERS_FILE, {})
-movies_db  = _load(MOVIES_FILE, {})
 store_deps = _load(STORE_DEP_FILE, {})
 
 def _load_store():
@@ -307,18 +305,14 @@ def user_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("🌐 សេវាកម្ម SMM", "🎮 Top Up ហ្គេម")
     kb.row("🛒 ទិញ Account", "🔥 ទំនិញបញ្ចុះតម្លៃ (%)")
-    kb.row("🎬 រឿងទាំងអស់ (VIP)", "🎁 រឿង Free")
-    kb.row("🔍 ស្វែងរករឿង", "🔥 រឿងពេញនិយម")
     kb.row("💳 ដាក់ប្រាក់", "👜 កាបូបលុយ", "💬 ជំនួយ Support")
     return kb
 
 def admin_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("➕ បន្ថែមទំនិញ/សេវាកម្ម", "📦 គ្រប់គ្រងទំនិញ")
-    kb.row("➕ បន្ថែមរឿងថ្មី", "🎬 គ្រប់គ្រងរឿង")
     kb.row("💰 កាបូបលុយសរុប", "💸 បន្ថែម/កាត់លុយភ្ញៀវ")
     kb.row("👥 អ្នកប្រើប្រាស់ទាំងអស់", "📢 ផ្សព្វផ្សាយសារ")
-    kb.row("🏠 Menu ភ្ញៀវ")
     return kb
 
 def cancel_kb():
@@ -335,36 +329,6 @@ def deposit_amt_kb():
             btns.append(row); row = []
     if row: btns.append(row)
     btns.append([InlineKeyboardButton("✏️ បញ្ចូលចំនួនផ្ទាល់ខ្លួន", callback_data="dep:custom")])
-    return InlineKeyboardMarkup(btns)
-
-def movies_list_kb(filter_type="all", page=0, per_page=6):
-    items = []
-    for mid, m in movies_db.items():
-        if filter_type == "free" and m.get("access") == "free":
-            items.append((mid, m))
-        elif filter_type == "vip" and m.get("access") != "free":
-            items.append((mid, m))
-        elif filter_type == "all":
-            items.append((mid, m))
-
-    total_pages = max(1, (len(items) + per_page - 1) // per_page)
-    start = page * per_page
-    end = start + per_page
-    
-    btns = []
-    for mid, m in items[start:end]:
-        title = m.get("title", "វីដេអូរឿង")
-        if m.get("access") == "free":
-            label = f"🎁 {title} (Free)"
-        else:
-            price = float(m.get("price", 0.0))
-            label = f"🔒 {title} (${price:.2f})"
-        btns.append([InlineKeyboardButton(label, callback_data=f"view_movie:{mid}")])
-    
-    nav = []
-    if page > 0: nav.append(InlineKeyboardButton("⬅️ ថយក្រោយ", callback_data=f"page:{filter_type}:{page-1}"))
-    if page < total_pages - 1: nav.append(InlineKeyboardButton("បន្ទាប់ ➡️", callback_data=f"page:{filter_type}:{page+1}"))
-    if nav: btns.append(nav)
     return InlineKeyboardMarkup(btns)
 
 # ═══════════════════════════════════════════════════════════
@@ -385,10 +349,10 @@ def cmd_start(message):
     welcome_text = (
         f"👋 សួស្ដី <b>{message.from_user.first_name}</b>!\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"🌟 ស្វាគមន៍មកកាន់ប្រព័ន្ធ Store & Bot កម្សាន្ត\n"
+        f"🌟 ស្វាគមន៍មកកាន់ប្រព័ន្ធ AIO Store (SMM, Top Up & Account)\n"
         f"💰 សាច់ប្រាក់ក្នុងកាបូប: <b>${bal(uid):.2f}</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"💡 <i>លោកអ្នកអាចទិញសេវាកម្ម SMM, Top Up ហ្គេម, Account និងទស្សនារឿងកម្សាន្តបានទីនេះ!</i>"
+        f"💡 <i>សូមជ្រើសរើសសេវាកម្មខាងក្រោមតាមតម្រូវការរបស់អ្នក!</i>"
     )
     bot.send_message(uid, welcome_text, reply_markup=admin_kb() if uid == ADMIN_ID else user_kb())
 
@@ -446,11 +410,9 @@ def handle_callbacks(call):
     elif data.startswith("buy_item:"):
         item_id = data.split(":")[1]
         found_item = None
-        found_cat = None
         for cat, items in store_db.items():
             if item_id in items:
                 found_item = items[item_id]
-                found_cat = cat
                 break
         
         if not found_item:
@@ -491,167 +453,6 @@ def handle_callbacks(call):
             bot.answer_callback_query(call.id, "✅ បានលុបទំនិញរួចរាល់")
             try: bot.edit_message_text("🗑️ បានលុបទំនិញដោយជោគជ័យ!", chat_id=uid, message_id=call.message.message_id)
             except: pass
-
-    elif data.startswith("set_access:"):
-        if uid != ADMIN_ID: return
-        _, access_type = data.split(":")
-        step = waiting.get(uid)
-        if isinstance(step, dict) and step.get("step") == "choose_access":
-            if access_type == "free":
-                mid = f"m_{int(time.time())}"
-                movies_db[mid] = {
-                    "title": step["title"],
-                    "type": "video",
-                    "file_id": step["file_id"],
-                    "access": "free",
-                    "price": 0.0,
-                    "desc": step["title"],
-                    "views": 0,
-                    "date": int(time.time())
-                }
-                _save(MOVIES_FILE, movies_db)
-                waiting.pop(uid, None)
-                bot.answer_callback_query(call.id, "✅ បន្ថែមជារឿង Free")
-                bot.edit_message_text(f"✅ <b>បានបញ្ចូលរឿង Free ជោគជ័យ!</b>\n🎬 {step['title']}", 
-                                      chat_id=uid, message_id=call.message.message_id)
-                bot.send_message(uid, "💡 ភ្ញៀវអាចទស្សនាបានដោយសេរី!", reply_markup=admin_kb())
-            else:
-                waiting[uid] = {
-                    "step": "enter_movie_price",
-                    "title": step["title"],
-                    "file_id": step["file_id"]
-                }
-                bot.answer_callback_query(call.id)
-                bot.edit_message_text(
-                    f"🎬 រឿង: <b>{step['title']}</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
-                    f"💰 សូមវាយ <b>តម្លៃរឿង (USD)</b> ដែលភ្ញៀវត្រូវបង់ដើម្បីមើល:\n"
-                    f"<i>(ឧទាហរណ៍៖ <code>0.25</code> ឬ <code>0.50</code> ឬ <code>1.00</code>)</i>",
-                    chat_id=uid, message_id=call.message.message_id
-                )
-
-    elif data.startswith("page:"):
-        _, f_type, page_str = data.split(":")
-        bot.edit_message_reply_markup(chat_id=uid, message_id=call.message.message_id, 
-                                      reply_markup=movies_list_kb(f_type, int(page_str)))
-        bot.answer_callback_query(call.id)
-
-    elif data.startswith("view_movie:"):
-        mid = data.split(":")[1]
-        movie = movies_db.get(mid)
-        if not movie:
-            bot.answer_callback_query(call.id, "❌ រឿងត្រូវបានលុប!", show_alert=True); return
-        
-        bot.answer_callback_query(call.id)
-        title = movie.get("title", "វីដេអូរឿង")
-        is_free = (movie.get("access") == "free")
-        price = float(movie.get("price", 0.0))
-
-        if is_free or uid == ADMIN_ID:
-            movie["views"] = movie.get("views", 0) + 1
-            _save(MOVIES_FILE, movies_db)
-            caption = f"🎬 <b>{title}</b>\n🏷️ 🎁 Free | 👁 ទស្សនា: {movie.get('views', 1)} ដង"
-            if movie.get("type") == "video" and movie.get("file_id"):
-                try: bot.send_video(uid, movie["file_id"], caption=caption, parse_mode=None)
-                except Exception as e: bot.send_message(uid, f"⚠️ Error: {e}")
-            elif movie.get("link"):
-                bot.send_message(uid, caption, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("▶️ ទស្សនា", url=movie["link"])]]))
-            return
-
-        preview_txt = (
-            f"🎬 <b>{title}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"🏷️ ប្រភេទ: <b>🔒 VIP Movie</b>\n"
-            f"💰 តម្លៃទស្សនា: <b>${price:.2f}</b>\n"
-            f"💳 សាច់ប្រាក់របស់អ្នក: <b>${bal(uid):.2f}</b>\n"
-            f"👁 ទស្សនា: {movie.get('views', 0)} ដង\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"💡 ចុចប៊ូតុងខាងក្រោមដើម្បីទូទាត់ទស្សនាវីដេអូនេះ៖"
-        )
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"🔓 ទូទាត់ ${price:.2f} ដើម្បីទស្សនា", callback_data=f"buy_movie:{mid}")],
-            [InlineKeyboardButton("💳 ដាក់ប្រាក់បន្ថែម", callback_data="dep:custom")]
-        ])
-        bot.send_message(uid, preview_txt, reply_markup=kb)
-
-    elif data.startswith("buy_movie:"):
-        mid = data.split(":")[1]
-        movie = movies_db.get(mid)
-        if not movie:
-            bot.answer_callback_query(call.id, "❌ រឿងត្រូវបានលុប!", show_alert=True); return
-        
-        price = float(movie.get("price", 0.0))
-        user_bal = bal(uid)
-
-        if user_bal < price:
-            bot.answer_callback_query(call.id, "❌ សាច់ប្រាក់របស់អ្នកមិនគ្រប់គ្រាន់ទេ!", show_alert=True)
-            bot.send_message(uid, 
-                f"❌ <b>សាច់ប្រាក់មិនគ្រប់គ្រាន់!</b>\n"
-                f"💰 តម្លៃរឿង: <b>${price:.2f}</b>\n"
-                f"💳 សាច់ប្រាក់បច្ចុប្បន្ន: <b>${user_bal:.2f}</b>\n\n"
-                f"👉 សូមចុចប៊ូតុង <b>💳 ដាក់ប្រាក់</b> ជាមុនសិន។",
-                reply_markup=deposit_amt_kb())
-            return
-
-        ded_bal(uid, price)
-        movie["views"] = movie.get("views", 0) + 1
-        _save(MOVIES_FILE, movies_db)
-        bot.answer_callback_query(call.id, f"✅ ទូទាត់ជោគជ័យ -${price:.2f}")
-
-        try:
-            bot.send_message(ADMIN_ID, f"🍿 <b>ភ្ញៀវទិញរឿងទស្សនា!</b>\n👤 <code>{uid}</code>\n🎬 {movie['title']}\n💰 +${price:.2f}")
-        except: pass
-
-        caption = (
-            f"🎬 <b>{movie['title']}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"✅ បានទូទាត់: <b>${price:.2f}</b>\n"
-            f"💳 សាច់ប្រាក់នៅសល់: <b>${bal(uid):.2f}</b>\n"
-            f"🍿 សូមរីករាយទស្សនា!"
-        )
-        if movie.get("type") == "video" and movie.get("file_id"):
-            try: bot.send_video(uid, movie["file_id"], caption=caption, parse_mode=None)
-            except Exception as e: bot.send_message(uid, f"⚠️ Error: {e}")
-        elif movie.get("link"):
-            bot.send_message(uid, caption, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("▶️ ទស្សនា", url=movie["link"])]]))
-
-    elif data.startswith("del_movie:"):
-        if uid != ADMIN_ID: return
-        mid = data.split(":")[1]
-        if mid in movies_db:
-            del movies_db[mid]
-            _save(MOVIES_FILE, movies_db)
-            bot.answer_callback_query(call.id, "✅ បានលុបរឿងរួចរាល់")
-            try: bot.edit_message_text("🗑️ បានលុបរឿងដោយជោគជ័យ!", chat_id=uid, message_id=call.message.message_id)
-            except: pass
-
-# ═══════════════════════════════════════════════════════════
-#  VIDEO HANDLER
-# ═══════════════════════════════════════════════════════════
-@bot.message_handler(content_types=["video", "document"])
-def handle_video(message):
-    uid = message.chat.id
-    if uid != ADMIN_ID: return
-
-    step = waiting.get(uid)
-    if step == "add_movie_video":
-        file_id = message.video.file_id if message.video else message.document.file_id
-        caption_title = message.caption.strip() if message.caption else ""
-
-        if caption_title:
-            waiting[uid] = {"step": "choose_access", "file_id": file_id, "title": caption_title}
-            kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔒 រឿង VIP (គិតលុយ)", callback_data="set_access:vip")],
-                [InlineKeyboardButton("🎁 រឿង Free (ឥតគិតថ្លៃ)", callback_data="set_access:free")]
-            ])
-            bot.send_message(uid, f"🎬 ចំណងជើង: <b>{caption_title}</b>\n\nតើរឿងនេះជាប្រភេទអ្វី?", reply_markup=kb)
-        else:
-            waiting[uid] = {"step": "add_movie_title", "file_id": file_id}
-            bot.send_message(uid, 
-                "📥 <b>បានទទួលវីដេអូរួចរាល់!</b>\n"
-                "━━━━━━━━━━━━━━━━━━\n"
-                "📝 សូមវាយ <b>ចំណងជើងរឿង</b> រួចផ្ញើមកទីនេះ:", 
-                reply_markup=cancel_kb())
 
 # ═══════════════════════════════════════════════════════════
 #  TEXT MESSAGES HANDLER
@@ -743,46 +544,6 @@ def handle_messages(message):
             bot.send_message(uid, "❌ ទម្រង់មិនត្រឹមត្រូវ! ឧទាហរណ៍: <code>+ 5915683588 10</code>")
             return
 
-    if isinstance(step, dict) and step.get("step") == "enter_movie_price":
-        try:
-            price = round(float(text.replace("$", "")), 2)
-            if price <= 0: raise ValueError
-        except:
-            bot.send_message(uid, "❌ សូមបញ្ចូលតម្លៃជាលេខឱ្យបានត្រឹមត្រូវ (ឧទាហរណ៍: <code>0.50</code>):")
-            return
-        
-        mid = f"m_{int(time.time())}"
-        movies_db[mid] = {
-            "title": step["title"],
-            "type": "video",
-            "file_id": step["file_id"],
-            "access": "vip",
-            "price": price,
-            "desc": step["title"],
-            "views": 0,
-            "date": int(time.time())
-        }
-        _save(MOVIES_FILE, movies_db)
-        waiting.pop(uid, None)
-        bot.send_message(uid, 
-            f"✅ <b>បានបញ្ចូលរឿង VIP ជោគជ័យ!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"🎬 ចំណងជើង: <b>{step['title']}</b>\n"
-            f"💰 តម្លៃ: <b>${price:.2f}</b>\n"
-            f"💡 ភ្ញៀវនឹងឃើញតម្លៃនេះពេលចុចមើល!", reply_markup=admin_kb())
-        return
-
-    if isinstance(step, dict) and step.get("step") == "add_movie_title":
-        file_id = step["file_id"]
-        title = text
-        waiting[uid] = {"step": "choose_access", "file_id": file_id, "title": title}
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔒 រឿង VIP (គិតលុយ)", callback_data="set_access:vip")],
-            [InlineKeyboardButton("🎁 រឿង Free (ឥតគិតថ្លៃ)", callback_data="set_access:free")]
-        ])
-        bot.send_message(uid, f"🎬 ចំណងជើង: <b>{title}</b>\n\nតើរឿងនេះជាប្រភេទអ្វី?", reply_markup=kb)
-        return
-
     if step == "dep_custom":
         try:
             amt = float(text.replace("$", ""))
@@ -793,7 +554,7 @@ def handle_messages(message):
             bot.send_message(uid, "❌ សូមបញ្ចូលចំនួនទឹកប្រាក់ជាលេខ (ឧ: 2.50):")
         return
 
-    # --- USER STORE & MOVIE MENU ---
+    # --- USER STORE MENU (3 ប្រភេទសេវាកម្ម) ---
     if text == "🌐 សេវាកម្ម SMM":
         items = store_db.get("smm", {})
         if not items: bot.send_message(uid, "❌ មិនទាន់មានសេវាកម្ម SMM នៅឡើយទេ។"); return
@@ -828,61 +589,16 @@ def handle_messages(message):
         bot.send_message(uid, "🔥 <b>បញ្ជីទំនិញនិងសេវាកម្មកំពុងបញ្ចុះតម្លៃពិសេស៖</b>", reply_markup=InlineKeyboardMarkup(btns))
         return
 
-    if text in ("🎬 រឿងទាំងអស់ (VIP)", "🎬 រឿងទាំងអស់"):
-        vip_movies = [m for m in movies_db.values() if m.get("access") != "free"]
-        if not vip_movies:
-            bot.send_message(uid, "❌ មិនទាន់មានរឿង VIP នៅឡើយទេ!"); return
-        bot.send_message(uid, "🎬 <b>ជ្រើសរើសរឿង VIP៖</b>", 
-                         reply_markup=movies_list_kb(filter_type="vip", page=0))
-        return
-
-    if text == "🎁 រឿង Free":
-        free_movies = [m for m in movies_db.values() if m.get("access") == "free"]
-        if not free_movies:
-            bot.send_message(uid, "❌ មិនទាន់មានរឿង Free នៅឡើយទេ!"); return
-        bot.send_message(uid, "🎁 <b>ជ្រើសរើសរឿង Free (ទស្សនាឥតគិតថ្លៃ)៖</b>", 
-                         reply_markup=movies_list_kb(filter_type="free", page=0))
-        return
-
     if text in ("👜 កាបូបលុយ", "👜 Wallet"):
         bot.send_message(uid,
             f"👜 <b>កាបូបលុយរបស់អ្នក</b>\n━━━━━━━━━━━━━━━━━━\n"
             f"👤 ID: <code>{uid}</code>\n💰 សាច់ប្រាក់: <b>${bal(uid):.2f}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n💡 ចុចប៊ូតុង <b>💳 ដាក់ប្រាក់</b> ដើម្បីបញ្ចូលលុយទិញទំនិញ ឬទស្សនារឿង។", reply_markup=user_kb())
+            f"━━━━━━━━━━━━━━━━━━\n💡 ចុចប៊ូតុង <b>💳 ដាក់ប្រាក់</b> ដើម្បីបញ្ចូលលុយទិញទំនិញ។", reply_markup=user_kb())
         return
 
     if text in ("💳 ដាក់ប្រាក់", "💳 Top Up"):
         waiting.pop(uid, None)
         bot.send_message(uid, f"💸 <b>បញ្ចូលទឹកប្រាក់</b>\n💳 សាច់ប្រាក់បច្ចុប្បន្ន: <b>${bal(uid):.2f}</b>\n\nសូមជ្រើសរើសចំនួនប្រាក់៖", reply_markup=deposit_amt_kb())
-        return
-
-    if text == "🔥 រឿងពេញនិយម":
-        if not movies_db:
-            bot.send_message(uid, "❌ មិនទាន់មានរឿងនៅឡើយទេ!"); return
-        top_movies = sorted(movies_db.items(), key=lambda x: x[1].get("views", 0), reverse=True)[:5]
-        btns = []
-        for mid, m in top_movies:
-            badge = "🎁" if m.get("access") == "free" else f"🔒 ${m.get('price', 0):.2f}"
-            btns.append([InlineKeyboardButton(f"{m['title']} ({badge})", callback_data=f"view_movie:{mid}")])
-        bot.send_message(uid, "🔥 <b>រឿងដែលមានអ្នកទស្សនាច្រើនជាងគេ៖</b>", reply_markup=InlineKeyboardMarkup(btns))
-        return
-
-    if text == "🔍 ស្វែងរករឿង":
-        waiting[uid] = "search_movie"
-        bot.send_message(uid, "🔎 សូមវាយ <b>ចំណងជើងរឿង</b> ដែលអ្នកចង់ស្វែងរក:", reply_markup=cancel_kb())
-        return
-
-    if step == "search_movie":
-        waiting.pop(uid, None)
-        query = text.lower()
-        results = [(mid, m) for mid, m in movies_db.items() if query in m.get("title", "").lower()]
-        if not results:
-            bot.send_message(uid, f"❌ រកមិនឃើញរឿង: <b>{text}</b>", reply_markup=user_kb()); return
-        btns = []
-        for mid, m in results:
-            badge = "🎁" if m.get("access") == "free" else f"🔒 ${m.get('price', 0):.2f}"
-            btns.append([InlineKeyboardButton(f"{m['title']} ({badge})", callback_data=f"view_movie:{mid}")])
-        bot.send_message(uid, f"✅ រកឃើញចំនួន <b>{len(results)}</b> រឿង:", reply_markup=InlineKeyboardMarkup(btns))
         return
 
     if text == "💬 ជំនួយ Support":
@@ -947,32 +663,11 @@ def handle_messages(message):
                 bot.send_message(uid, "\n".join(lines), reply_markup=admin_kb())
             return
 
-        if text == "➕ បន្ថែមរឿងថ្មី":
-            waiting[uid] = "add_movie_video"
-            bot.send_message(uid, 
-                "📤 <b>សូមផ្ញើ ឬ Forward វីដេអូរឿងចូលទីនេះ៖</b>\n"
-                "━━━━━━━━━━━━━━━━━━\n"
-                "💡 <i>អ្នកអាចជ្រើសរើស VIP រួចកំណត់តម្លៃវីដេអូបាននៅជំហានបន្ទាប់។</i>", 
-                reply_markup=cancel_kb())
-            return
-
-        if text == "🎬 គ្រប់គ្រងរឿង":
-            if not movies_db:
-                bot.send_message(uid, "❌ គ្មានរឿងទេ!", reply_markup=admin_kb()); return
-            for mid, m in list(movies_db.items())[-10:]:
-                price_str = "Free" if m.get("access") == "free" else f"${m.get('price',0):.2f}"
-                kb = InlineKeyboardMarkup([[InlineKeyboardButton("🗑️ លុបរឿងនេះ", callback_data=f"del_movie:{mid}")]])
-                bot.send_message(uid, f"🎬 <b>{m['title']}</b>\n💰 តម្លៃ: <b>{price_str}</b> | 👁 Views: {m.get('views',0)}", reply_markup=kb)
-            return
-
         if text == "💰 កាបូបលុយសរុប":
             lines = ["<b>💰 កាបូបលុយអ្នកប្រើសរុប</b>\n━━━━━━━━━━━━━━━━━━"]
             for u_id, u_info in sorted(users_db.items(), key=lambda x: x[1].get("last",0), reverse=True)[:25]:
                 lines.append(f"👤 {u_info.get('name','?')} (<code>{u_id}</code>): <b>${bal(u_id):.2f}</b>")
             bot.send_message(uid, "\n".join(lines)[:4000], reply_markup=admin_kb()); return
-
-        if text == "🏠 Menu ភ្ញៀវ":
-            bot.send_message(uid, "👁 ទម្រង់ជាភ្ញៀវ", reply_markup=user_kb()); return
 
         if text == "📢 ផ្សព្វផ្សាយសារ":
             waiting[uid] = "broadcast"
@@ -1004,7 +699,7 @@ def _send_store_catalog_msg(uid, title_header, items_dict):
 # ═══════════════════════════════════════════════════════════
 flask_app = Flask(__name__)
 @flask_app.route("/health")
-def health(): return jsonify({"status": "running", "type": "AIO Store & Movie Bot"})
+def health(): return jsonify({"status": "running", "type": "AIO Store Bot"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
