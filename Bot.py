@@ -69,7 +69,6 @@ API_CONFIG_FILE = "smm_api_config.json"
 DISCOUNTS_FILE = "smm_discounts.json"
 
 DEFAULT_KHMER_SMM = {
-    # ─── FACEBOOK ───
     "fb_like_kh": {"cat": "Facebook", "name": "👍 FB Likes ខ្មែរ Real", "rate": 1.50, "min": 50, "max": 20000, "api_service_id": 101},
     "fb_like_mix": {"cat": "Facebook", "name": "👍 FB Likes Mix Global", "rate": 0.80, "min": 100, "max": 100000, "api_service_id": 102},
     "fb_react_love": {"cat": "Facebook", "name": "❤️ FB React Love", "rate": 1.20, "min": 50, "max": 20000, "api_service_id": 103},
@@ -80,23 +79,15 @@ DEFAULT_KHMER_SMM = {
     "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
     "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
     "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
-
-    # ─── TIKTOK ───
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
     "tt_follow": {"cat": "TikTok", "name": "👥 TikTok Followers (មិនស្រក)", "rate": 2.80, "min": 100, "max": 20000, "api_service_id": 203},
     "tt_share": {"cat": "TikTok", "name": "🔁 TikTok Shares/Repost", "rate": 0.50, "min": 100, "max": 50000, "api_service_id": 204},
-
-    # ─── TELEGRAM ───
     "tg_member": {"cat": "Telegram", "name": "✈️ Telegram Members", "rate": 1.80, "min": 100, "max": 50000, "api_service_id": 301},
     "tg_post_view": {"cat": "Telegram", "name": "👁 TG Post Views", "rate": 0.10, "min": 100, "max": 100000, "api_service_id": 302},
     "tg_react": {"cat": "Telegram", "name": "🔥 TG Reactions (Fire)", "rate": 0.60, "min": 50, "max": 20000, "api_service_id": 303},
-
-    # ─── YOUTUBE ───
     "yt_view": {"cat": "YouTube", "name": "👁 YouTube Views", "rate": 1.80, "min": 500, "max": 50000, "api_service_id": 401},
     "yt_sub": {"cat": "YouTube", "name": "🔴 YouTube Subscribers", "rate": 18.00, "min": 50, "max": 2000, "api_service_id": 402},
-
-    # ─── INSTAGRAM ───
     "ig_follow": {"cat": "Instagram", "name": "📸 IG Followers (HQ)", "rate": 1.60, "min": 100, "max": 30000, "api_service_id": 501},
     "ig_like": {"cat": "Instagram", "name": "❤️ IG Post Likes", "rate": 0.70, "min": 100, "max": 30000, "api_service_id": 502}
 }
@@ -145,37 +136,74 @@ def get_disc_price(orig_price, disc_percent):
         return orig_price
     return max(0.01, round(orig_price * (1 - disc_percent / 100.0), 2))
 
-def smm_api_order(service_id, link, quantity):
-    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
-    if not url or not key:
-        return {"error": "Admin មិនទាន់កំណត់ API"}
-    payload = {"key": key, "action": "add", "service": service_id, "link": link, "quantity": quantity}
-    try:
-        return requests.post(url, data=payload, timeout=25).json()
-    except Exception as e:
-        return {"error": str(e)}
+# ═══════════════════════════════════════════════════════════
+#  FALLBACK KHQR BUILDER (CRC16 EMVCo)
+# ═══════════════════════════════════════════════════════════
+def _crc16_ccitt(data: str) -> str:
+    crc = 0xFFFF
+    for ch in data:
+        crc ^= (ord(ch) << 8)
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return f"{crc:04X}"
 
-def smm_api_balance():
-    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
-    if not url or not key:
-        return "❌ មិនទាន់កំណត់ API"
+def _build_raw_bakong_qr(account_id, amount_usd, bill_num):
+    def tag(tid, val):
+        return f"{tid:02d}{len(val):02d}{val}"
+
+    sub29 = tag(0, account_id)
+    payload = (
+        tag(0, "01") +
+        tag(1, "12") +
+        tag(29, sub29) +
+        tag(52, "5999") +
+        tag(53, "840") +
+        tag(54, f"{amount_usd:.2f}") +
+        tag(58, "KH") +
+        tag(59, "KhmerSMM") +
+        tag(60, "Phnom Penh") +
+        tag(62, tag(1, str(bill_num)[:25])) +
+        "6304"
+    )
+    return payload + _crc16_ccitt(payload)
+
+def _generate_khqr(uid, amount, note=""):
     try:
-        resp = requests.post(url, data={"key": key, "action": "balance"}, timeout=15).json()
-        if "balance" in resp:
-            return f"${float(resp['balance']):.2f} {resp.get('currency', 'USD')}"
-        return f"Error: {resp.get('error', 'Unknown')}"
+        from bakong_khqr import KHQR
+        qr = KHQR(BAKONG_TOKEN).create_qr(
+            bank_account=BANK_ACCOUNT,
+            merchant_name="KhmerSMM",
+            merchant_city=MERCHANT_CITY,
+            amount=round(float(amount), 2),
+            currency="USD",
+            bill_number=(note or f"uid{uid}")[:25],
+            static=False,
+        )
+        if qr:
+            return qr
     except Exception as e:
-        return f"Error: {e}"
+        logger.warning(f"Bakong SDK failed: {e}. Switching to EMVCo Generator.")
+
+    return _build_raw_bakong_qr(BANK_ACCOUNT, round(float(amount), 2), (note or f"uid{uid}")[:25])
+
+def _check_bakong(md5, amount, start_ts):
+    try:
+        from bakong_khqr import KHQR as _BK
+        return _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID"
+    except Exception:
+        return False
 
 # ═══════════════════════════════════════════════════════════
-#  DRAW STYLED BAKONG KHQR TEMPLATE (រចនាបថ Bakong ពណ៌ក្រហម)
+#  DRAW STYLED BAKONG KHQR
 # ═══════════════════════════════════════════════════════════
 def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     card_w, card_h = 750, 1050
     card = Image.new("RGBA", (card_w, card_h), "#FFFFFF")
     draw = ImageDraw.Draw(card)
 
-    # ឆ្នូតខាងលើពណ៌ក្រហម Bakong
     draw.rectangle([(0, 0), (card_w, 28)], fill="#c8102e")
 
     font_header, font_slogan, font_name, font_khqr_small, font_amt, font_dollar = None, None, None, None, None, None
@@ -200,11 +228,9 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     if not font_header:
         font_header = font_name = font_slogan = font_khqr_small = font_amt = font_dollar = ImageFont.load_default()
 
-    # បង្ហាញពាក្យ BAKONG PAY (ពណ៌ក្រហមស្អាត)
     draw.text((card_w // 2, 100), "BAKONG PAY", fill="#c8102e", font=font_header, anchor="mm")
     draw.text((card_w // 2, 170), "Scan. Pay. Done.", fill="#111111", font=font_slogan, anchor="mm")
 
-    # ប្រអប់ដាក់ QR Code
     qr_box_size = 440
     box_x1 = (card_w - qr_box_size) // 2
     box_y1 = 225
@@ -228,11 +254,9 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     draw.ellipse([(center_x - 27, center_y - 27), (center_x + 27, center_y + 27)], fill="#c8102e")
     draw.text((center_x, center_y), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
 
-    # ឈ្មោះគណនី KhmerSMM
     draw.text((card_w // 2, box_y2 + 50), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
     draw.text((card_w // 2, box_y2 + 105), f"AMOUNT: ${amount:.2f} USD", fill="#c8102e", font=font_amt, anchor="mm")
 
-    # ក្បាច់ curve ផ្នែកខាងក្រោម
     bg_curve = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     bg_draw = ImageDraw.Draw(bg_curve)
     bg_draw.rounded_rectangle([(card_w - 240, card_h - 180), (card_w + 120, card_h + 120)], radius=90, fill="#c8102e")
@@ -247,36 +271,13 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     buf.seek(0)
     return buf
 
-def _generate_khqr(uid, amount, note=""):
-    try:
-        from bakong_khqr import KHQR
-        return KHQR(BAKONG_TOKEN).create_qr(
-            bank_account=BANK_ACCOUNT,
-            merchant_name="KhmerSMM",
-            merchant_city=MERCHANT_CITY,
-            amount=round(float(amount), 2),
-            currency="USD",
-            bill_number=(note or f"uid{uid}")[:25],
-            static=False,
-        ) or ""
-    except Exception as e:
-        logger.error(f"[_generate_khqr] Error: {e}")
-        return ""
-
-def _check_bakong(md5, amount, start_ts):
-    try:
-        from bakong_khqr import KHQR as _BK
-        return _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID"
-    except Exception:
-        return False
-
 def _build_caption(amount, remaining_sec):
     mins, secs = max(0, remaining_sec // 60), max(0, remaining_sec % 60)
     return (
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 ឈ្មោះគណនី: <b>KhmerSMM</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b> (បានកំណត់ស្វ័យប្រវត្តិក្នុង QR)\n"
+        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b> (ស្វ័យប្រវត្តិក្នុង QR)\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"📱 Scan ជាមួយ Bakong, ABA, Wing ឬធនាគារនានា"
@@ -347,12 +348,8 @@ def _send_deposit_qr(uid, amount):
         bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
         return
 
-    try:
-        from bakong_khqr import KHQR as _BK
-        md5_hash = _BK(BAKONG_TOKEN).generate_md5(qr_str)
-    except Exception:
-        import hashlib
-        md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
+    import hashlib
+    md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
 
     dep_id = f"dep_{uid}_{int(time.time())}"
     store_deps[dep_id] = {
@@ -1872,7 +1869,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Bakong Pay Brand"})
+    return jsonify({"status": "running", "type": "KhmerSMM Bakong Pay Mode"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
@@ -1880,4 +1877,8 @@ def run_flask():
 if __name__ == "__main__":
     logger.info("🚀 Full Bot is running...")
     threading.Thread(target=run_flask, daemon=True).start()
-    bot.infinity_polling(timeout=20, long_polling_timeout=15)
+    try:
+        bot.remove_webhook()
+    except Exception:
+        pass
+    bot.infinity_polling(timeout=20, long_polling_timeout=15, skip_pending=True)
