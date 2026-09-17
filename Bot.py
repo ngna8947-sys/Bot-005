@@ -54,7 +54,7 @@ ADMIN_ID = 5915683588
 
 BAKONG_TOKEN = "rbkMVUSQPooaey51jm1cD5ECnzmHyeNX7fBX4Afc16GU8k"
 
-# ⚠️ សូមប្ដូរទៅជា Bakong ID ពិតរបស់អ្នក (ឧ. "yourname@aba" ឬ "012345678@aba" ឬ "yourname@bakong")
+# ⚠️ ដាក់ Bakong ID ឬ ABA ID ពិតប្រាកដរបស់អ្នកនៅទីនេះ (ឧ. "samnang_mon@aba" ឬ "012345678@aba")
 BANK_ACCOUNT = "samnang_mon@aba"
 
 MERCHANT_NAME = "KhmerSMM"
@@ -73,7 +73,6 @@ API_CONFIG_FILE = "smm_api_config.json"
 DISCOUNTS_FILE = "smm_discounts.json"
 
 DEFAULT_KHMER_SMM = {
-    # ─── FACEBOOK ───
     "fb_like_kh": {"cat": "Facebook", "name": "👍 FB Likes ខ្មែរ Real", "rate": 1.50, "min": 50, "max": 20000, "api_service_id": 101},
     "fb_like_mix": {"cat": "Facebook", "name": "👍 FB Likes Mix Global", "rate": 0.80, "min": 100, "max": 100000, "api_service_id": 102},
     "fb_react_love": {"cat": "Facebook", "name": "❤️ FB React Love", "rate": 1.20, "min": 50, "max": 20000, "api_service_id": 103},
@@ -84,23 +83,15 @@ DEFAULT_KHMER_SMM = {
     "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
     "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
     "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
-
-    # ─── TIKTOK ───
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
     "tt_follow": {"cat": "TikTok", "name": "👥 TikTok Followers (មិនស្រក)", "rate": 2.80, "min": 100, "max": 20000, "api_service_id": 203},
     "tt_share": {"cat": "TikTok", "name": "🔁 TikTok Shares/Repost", "rate": 0.50, "min": 100, "max": 50000, "api_service_id": 204},
-
-    # ─── TELEGRAM ───
     "tg_member": {"cat": "Telegram", "name": "✈️ Telegram Members", "rate": 1.80, "min": 100, "max": 50000, "api_service_id": 301},
     "tg_post_view": {"cat": "Telegram", "name": "👁 TG Post Views", "rate": 0.10, "min": 100, "max": 100000, "api_service_id": 302},
     "tg_react": {"cat": "Telegram", "name": "🔥 TG Reactions (Fire)", "rate": 0.60, "min": 50, "max": 20000, "api_service_id": 303},
-
-    # ─── YOUTUBE ───
     "yt_view": {"cat": "YouTube", "name": "👁 YouTube Views", "rate": 1.80, "min": 500, "max": 50000, "api_service_id": 401},
     "yt_sub": {"cat": "YouTube", "name": "🔴 YouTube Subscribers", "rate": 18.00, "min": 50, "max": 2000, "api_service_id": 402},
-
-    # ─── INSTAGRAM ───
     "ig_follow": {"cat": "Instagram", "name": "📸 IG Followers (HQ)", "rate": 1.60, "min": 100, "max": 30000, "api_service_id": 501},
     "ig_like": {"cat": "Instagram", "name": "❤️ IG Post Likes", "rate": 0.70, "min": 100, "max": 30000, "api_service_id": 502}
 }
@@ -145,7 +136,7 @@ def get_disc_price(orig_price, disc_percent):
     return max(0.01, round(orig_price * (1 - disc_percent / 100.0), 2))
 
 # ═══════════════════════════════════════════════════════════
-#  STANDALONE BAKONG KHQR GENERATOR (EMVCo STANDARD)
+#  ACCURATE BAKONG KHQR FORMAT (EMVCo COMPLIANT)
 # ═══════════════════════════════════════════════════════════
 def _crc16(data: bytes) -> str:
     crc = 0xFFFF
@@ -163,20 +154,11 @@ def _format_tlv(tag: str, val: str) -> str:
 
 def _generate_khqr(uid, amount, note=""):
     try:
-        from bakong_khqr import KHQR
-        res = KHQR(BAKONG_TOKEN).create_qr(
-            bank_account=BANK_ACCOUNT, merchant_name=MERCHANT_NAME,
-            merchant_city=MERCHANT_CITY, amount=round(float(amount), 2),
-            currency="USD", bill_number=(note or f"uid{uid}")[:25], static=False
-        )
-        if res: return res
-    except Exception:
-        pass
-
-    try:
-        acc_info = _format_tlv("00", BANK_ACCOUNT)
-        f29 = _format_tlv("29", _format_tlv("00", "bakong") + acc_info)
+        # Standard Bakong Individual KHQR Payload
+        acc_str = str(BANK_ACCOUNT).strip()
+        f29 = _format_tlv("29", _format_tlv("00", "bakong") + _format_tlv("01", acc_str))
         amt_str = f"{float(amount):.2f}"
+        
         raw = (
             _format_tlv("00", "01") +
             _format_tlv("01", "12") +
@@ -190,18 +172,11 @@ def _generate_khqr(uid, amount, note=""):
             _format_tlv("62", _format_tlv("01", f"uid{uid}")[:25]) +
             "6304"
         )
-        crc = _crc16(raw.encode('utf-8'))
+        crc = _crc16(raw.encode("utf-8"))
         return raw + crc
     except Exception as e:
-        logger.error(f"Fallback KHQR Error: {e}")
+        logger.error(f"KHQR Gen Error: {e}")
         return ""
-
-def _check_bakong(md5, amount, start_ts):
-    try:
-        from bakong_khqr import KHQR as _BK
-        return _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID"
-    except Exception:
-        return False
 
 # ═══════════════════════════════════════════════════════════
 #  DRAW STYLED ABA PAY TEMPLATE (KhmerSMM)
@@ -304,27 +279,6 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
         if not dep or dep.get("status") != "pending":
             return
 
-        if _check_bakong(dep.get("md5", ""), amount, start_ts):
-            add_bal(uid, round(amount, 2))
-            dep["status"] = "confirmed"
-            _save(STORE_DEP_FILE, store_deps)
-            try:
-                bot.edit_message_caption(
-                    chat_id=uid,
-                    message_id=msg_id,
-                    caption=f"✅ <b>ការទូទាត់ទទួលបានជោគជ័យ!</b>\n💰 បញ្ចូល: +${amount:.2f}",
-                )
-                bot.send_message(
-                    uid,
-                    f"✅ <b>ដាក់ប្រាក់ជោគជ័យ!</b>\n💰 +${amount:.2f}\n💳 សមតុល្យសរុប: <b>${bal(uid):.2f}</b>",
-                    reply_markup=user_kb(uid),
-                )
-                bot.send_message(
-                    ADMIN_ID, f"💰 <b>Auto KHQR</b>\n👤 <code>{uid_str}</code> | +${amount:.2f}"
-                )
-            except: pass
-            return
-
         if now - last_edit >= 10 and msg_id:
             try:
                 bot.edit_message_caption(
@@ -375,7 +329,7 @@ def _send_deposit_qr(uid, amount):
     try:
         bot.send_message(
             ADMIN_ID,
-            f"📥 <b>ការស្នើដាក់លុយ!</b>\n👤 <code>{uid_str}</code> | 💰 <b>${amount:.2f}</b>",
+            f"📥 <b>ការស្នើដាក់លុយ!</b>\n👤 <code>{uid_str}</code> | 💰 <b>${amount:.2f}</b>\n(សូមពិនិត្យ App ធនាគារ រួចចុច Approve)",
             reply_markup=admin_kb_dep,
         )
     except: pass
@@ -516,31 +470,6 @@ def accounts_menu_kb():
             tag = f"🔥${cur:.2f}" if disc > 0 else f"${orig:.2f}"
             btns.append([InlineKeyboardButton(f"📦 {a['title']} | {tag} [សល់: {stock}]", callback_data=f"view_acc:{aid}")])
     return InlineKeyboardMarkup(btns) if btns else None
-
-# ═══════════════════════════════════════════════════════════
-#  SMM PANEL API INTEGRATION
-# ═══════════════════════════════════════════════════════════
-def smm_api_order(service_id, link, quantity):
-    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
-    if not url or not key:
-        return {"error": "Admin មិនទាន់កំណត់ API"}
-    payload = {"key": key, "action": "add", "service": service_id, "link": link, "quantity": quantity}
-    try:
-        return requests.post(url, data=payload, timeout=25).json()
-    except Exception as e:
-        return {"error": str(e)}
-
-def smm_api_balance():
-    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
-    if not url or not key:
-        return "❌ មិនទាន់កំណត់ API"
-    try:
-        resp = requests.post(url, data={"key": key, "action": "balance"}, timeout=15).json()
-        if "balance" in resp:
-            return f"${float(resp['balance']):.2f} {resp.get('currency', 'USD')}"
-        return f"Error: {resp.get('error', 'Unknown')}"
-    except Exception as e:
-        return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
 #  START
@@ -960,7 +889,6 @@ def handle_callbacks(call):
             reply_markup=cancel_kb(),
         )
 
-    # --- Admin Orders & Deposits ---
     elif data.startswith("manual_dep:"):
         if uid != ADMIN_ID: return
         _, act, dep_id = data.split(":")
