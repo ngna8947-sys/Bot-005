@@ -47,7 +47,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════
-#  CONFIG
+#  CONFIG & STATIC QR STRING (ប្រកាសទុកមុនគេបង្អស់)
 # ═══════════════════════════════════════════════════════════
 BOT_TOKEN = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
 ADMIN_ID = 5915683588
@@ -58,6 +58,9 @@ MERCHANT_NAME = "KhmerSMM"
 MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
+
+# 💎 កូដ Static KHQR ស្ដង់ដារថេរ ត្រូវនឹង mon_samnang@bkrt របស់អ្នក
+MY_STATIC_QR = "00020101021129190011kh.gov.nbc.bakong0115mon_samnang@bkrt5204599953038405802KH5909KhmerSMM6010Phnom Penh6304"
 
 WALLETS_FILE = "smm_wallets.json"
 USERS_FILE = "smm_users.json"
@@ -1942,7 +1945,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Static QR Fixed Caption"})
+    return jsonify({"status": "running", "type": "KhmerSMM Static QR Fixed Caption Final"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
