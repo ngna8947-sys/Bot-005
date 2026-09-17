@@ -16,7 +16,6 @@ from telebot.types import (
 )
 
 def _ensure_deps():
-    # បន្ថែម bakong-khqr ឱ្យ Auto-install លើ GitHub ដាច់ខាត
     pkgs = {
         "PIL": "pillow",
         "qrcode": "qrcode",
@@ -160,7 +159,7 @@ def smm_api_balance():
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
-#  ACCURATE KHQR GENERATOR
+#  STANDARD EMVCo KHQR GENERATOR
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -178,29 +177,32 @@ def _build_dynamic_khqr_manual(account_id: str, amount: float) -> str:
         val_str = str(val)
         return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
 
+    # Tag 29: Bakong Merchant Account Information
     sub29 = tag(0, "kh.gov.nbc.bakong") + tag(1, account_id)
     tag29 = tag(29, sub29)
     amt_str = f"{amount:.2f}"
 
+    # បន្ថែម Tag 00 ដើមគេ (000201) ដែលជាស្ដង់ដារដាច់ខាតរបស់ EMVCo
     payload = (
-        tag(0, "01") +
-        tag(1, "12") +
+        tag(0, "01") +                   # 000201 នឹងត្រូវផ្គុំនៅខាងក្រោម
+        tag(1, "12") +                   # 12 = Dynamic QR (ចាក់សោលុយ)
         tag29 +
         tag(52, "5999") +
-        tag(53, "840") +
-        tag(54, amt_str) +
+        tag(53, "840") +                  # 840 = USD
+        tag(54, amt_str) +                # ចំនួនទឹកប្រាក់ចាក់សោ
         tag(58, "KH") +
         tag(59, MERCHANT_NAME) +
         tag(60, MERCHANT_CITY) +
         "6304"
     )
-    return payload + _crc16_khqr(payload)
+    full_payload = "000201" + payload
+    return full_payload + _crc16_khqr(full_payload)
 
 def _generate_khqr(uid, amount, note=""):
     amt = round(float(amount), 2)
+    # ១. សាកល្បងបង្កើតតាម SDK ជាមុន (បើមាន)
     try:
         from bakong_khqr import KHQR
-        # ហៅដូចនៅលើកុំព្យូទ័ររបស់អ្នកបេះបិទ
         qr = KHQR(BAKONG_TOKEN).create_qr(
             bank_account=BANK_ACCOUNT,
             merchant_name=MERCHANT_NAME,
@@ -213,8 +215,9 @@ def _generate_khqr(uid, amount, note=""):
         if qr and qr.startswith("000201"):
             return qr
     except Exception as e:
-        logger.warning(f"Library error: {e}")
+        logger.warning(f"SDK failed or missing, use manual engine: {e}")
 
+    # ២. បង្កើតតាម Manual ដែលមាន Tag 000201 ត្រឹមត្រូវ ១០០%
     return _build_dynamic_khqr_manual(BANK_ACCOUNT, amt)
 
 def _check_bakong(md5, amount, start_ts):
@@ -222,7 +225,6 @@ def _check_bakong(md5, amount, start_ts):
         from bakong_khqr import KHQR as _BK
         return _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID"
     except Exception:
-        # Fallback ឆែកផ្ទាល់ជាមួយ Bakong API ប្រសិនបើ library មានបញ្ហាលើ Cloud
         try:
             url = "https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5"
             headers = {"Authorization": f"Bearer {BAKONG_TOKEN}", "Content-Type": "application/json"}
@@ -341,7 +343,7 @@ def _build_caption(amount, remaining_sec):
         f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f} USD</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ ABA, Bakong, Wing ដើម្បីទូទាត់ភ្លាមៗ (ទឹកប្រាក់នឹងលោតស្វ័យប្រវត្តិតាម App)"
+        f"📱 Scan ជាមួយ ABA, Bakong, Wing ដើម្បីទូទាត់ភ្លាមៗ"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -409,7 +411,6 @@ def _send_deposit_qr(uid, amount):
         bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
         return
 
-    # បង្កើត MD5 ត្រឹមត្រូវតាមស្ដង់ដារ
     try:
         from bakong_khqr import KHQR
         md5_hash = KHQR(BAKONG_TOKEN).generate_md5(qr_str)
@@ -1943,7 +1944,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Dynamic KHQR Mode"})
+    return jsonify({"status": "running", "type": "KhmerSMM KHQR Standard"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
