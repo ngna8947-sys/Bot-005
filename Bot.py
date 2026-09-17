@@ -58,9 +58,6 @@ MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
-# 💎 ជំនួសកូដ QR String របស់អ្នកនៅត្រង់នេះ (Copy យកពី Bakong App ផ្ទាល់របស់អ្នកមកដាក់)
-MY_STATIC_QR = "00020101021129190011kh.gov.nbc.bakong0115samnang_mon@bkrt5204599953038405802KH5909KhmerSMM6010Phnom Penh6304"
-
 WALLETS_FILE = "smm_wallets.json"
 USERS_FILE = "smm_users.json"
 ORDERS_FILE = "smm_orders.json"
@@ -156,8 +153,59 @@ def smm_api_balance():
     except Exception as e:
         return f"Error: {e}"
 
+# ═══════════════════════════════════════════════════════════
+#  STATIC KHQR GENERATOR
+# ═══════════════════════════════════════════════════════════
+def _crc16_khqr(data: str) -> str:
+    crc = 0xFFFF
+    for ch in data:
+        crc ^= (ord(ch) << 8)
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return f"{crc:04X}"
+
+def _build_static_khqr(account_id: str) -> str:
+    def tag(tid: int, val: str) -> str:
+        val_str = str(val)
+        return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
+
+    sub29 = tag(0, "kh.gov.nbc.bakong") + tag(1, account_id)
+    tag29 = tag(29, sub29)
+
+    payload = (
+        tag(0, "01") +
+        tag(1, "11") +
+        tag29 +
+        tag(52, "5999") +
+        tag(53, "840") +
+        tag(58, "KH") +
+        tag(59, "KhmerSMM") +
+        tag(60, "Phnom Penh") +
+        "6304"
+    )
+    return payload + _crc16_khqr(payload)
+
 def _generate_khqr(uid, amount, note=""):
-    return MY_STATIC_QR
+    try:
+        from bakong_khqr import KHQR
+        qr = KHQR(BAKONG_TOKEN).create_qr(
+            bank_account=BANK_ACCOUNT,
+            merchant_name=MERCHANT_NAME,
+            merchant_city=MERCHANT_CITY,
+            amount=round(float(amount), 2),
+            currency="USD",
+            bill_number=(note or f"uid{uid}")[:25],
+            static=True,
+        )
+        if qr and qr.startswith("000201"):
+            return qr
+    except Exception:
+        pass
+    
+    return _build_static_khqr(BANK_ACCOUNT)
 
 def _check_bakong(md5, amount, start_ts):
     try:
@@ -458,7 +506,7 @@ def category_smm_kb():
 
 def smm_by_cat_kb(category, page=0, per_page=5):
     disc = discounts.get("smm", 0)
-    items = [(sid, s) for sid, s in services_db.items() if s.get("cat"] == category]
+    items = [(sid, s) for sid, s in services_db.items() if s.get("cat") == category]
     total_pages = max(1, (len(items) + per_page - 1) // per_page)
     start = page * per_page
     end = start + per_page
@@ -955,7 +1003,7 @@ def handle_callbacks(call):
             return
         target_uid, amt = int(dep["uid"]), float(dep["amount"])
         if act == "approve":
-            if dep.get("status"] == "confirmed":
+            if dep.get("status") == "confirmed":
                 bot.answer_callback_query(call.id, "⚠️ ដាក់រួចហើយ!")
                 return
             add_bal(target_uid, amt)
