@@ -59,6 +59,9 @@ MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
+# 💎 កូដ QR String ថេរ (Static KHQR) ត្រឹមត្រូវស្ដង់ដារបាគងរបស់អ្នក
+MY_STATIC_QR = "00020101021129190011kh.gov.nbc.bakong0115samnang_mon@bkrt5204599953038405802KH5909KhmerSMM6010Phnom Penh6304"
+
 WALLETS_FILE = "smm_wallets.json"
 USERS_FILE = "smm_users.json"
 ORDERS_FILE = "smm_orders.json"
@@ -220,27 +223,8 @@ def smm_api_balance():
     except Exception as e:
         return f"Error: {e}"
 
-# ═══════════════════════════════════════════════════════════
-#  BAKONG KHQR OFFICIAL SDK DYNAMIC GENERATOR
-# ═══════════════════════════════════════════════════════════
 def _generate_khqr(uid, amount, note=""):
-    try:
-        bk = KHQR(BAKONG_TOKEN)
-        qr = bk.create_qr(
-            bank_account=BANK_ACCOUNT,
-            merchant_name=MERCHANT_NAME,
-            merchant_city=MERCHANT_CITY,
-            amount=round(float(amount), 2),
-            currency="USD",
-            bill_number=(note or f"uid{uid}")[:25],
-            static=False,
-        )
-        if qr:
-            return qr
-    except Exception as e:
-        logger.error(f"Bakong SDK create_qr error: {e}")
-    
-    return ""
+    return MY_STATIC_QR
 
 def _check_bakong(md5, amount, start_ts):
     try:
@@ -357,7 +341,7 @@ def _build_caption(amount, remaining_sec):
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 ឈ្មោះគណនី: <b>KhmerSMM</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b> (លោតស្វ័យប្រវត្តិពេល Scan)\n"
+        f"💰 ចំនួនទឹកប្រាក់ត្រូវវាយបញ្ចូល: <b>${amount:.2f}</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"📱 Scan ជាមួយ ABA, Bakong, Wing ឬគ្រប់ធនាគារ"
@@ -1961,7 +1945,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Static QR Fixed"})
+    return jsonify({"status": "running", "type": "KhmerSMM Static QR Mode Final"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
