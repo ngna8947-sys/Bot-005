@@ -86,7 +86,7 @@ DEFAULT_KHMER_SMM = {
     "fb_page_fol": {"cat": "Facebook", "name": "👥 FB Page Followers", "rate": 2.20, "min": 100, "max": 50000, "api_service_id": 106},
     "fb_prof_fol": {"cat": "Facebook", "name": "👤 FB Profile Followers", "rate": 1.90, "min": 100, "max": 50000, "api_service_id": 107},
     "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
-    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
+    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 20000, "api_service_id": 110},
     "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
@@ -164,7 +164,7 @@ def smm_api_balance():
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
-#  DYNAMIC KHQR GENERATOR & VERIFIER (NBC STANDARD)
+#  STANDARD BAKONG INDIVIDUAL KHQR (WITH AMOUNT LOCKED)
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -177,60 +177,48 @@ def _crc16_khqr(data: str) -> str:
                 crc = (crc << 1) & 0xFFFF
     return f"{crc:04X}"
 
-def _build_dynamic_khqr(account_id: str, amount: float, bill_no: str) -> str:
+def _build_correct_khqr(account_id: str, amount: float):
     def tag(tid: int, val: str) -> str:
         val_str = str(val)
         return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
 
-    # Tag 29: Bakong Merchant Account Information
+    # Tag 29 សម្រាប់គណនី Bakong Transfer
     sub29 = tag(0, "kh.gov.nbc.bakong") + tag(1, account_id)
     tag29 = tag(29, sub29)
     amt_str = f"{amount:.2f}"
-    
-    # Tag 62: Additional Data (Bill Number)
-    sub62 = tag(1, bill_no[:25])
-    tag62 = tag(62, sub62)
 
+    # ប្រើ "01" (Point of Initiation Method = 12 សម្រាប់ចាក់សោលុយស្វ័យប្រវត្តិ)
     payload = (
         tag(0, "01") +
-        tag(1, "12") +                   # 12 = Dynamic QR ចាក់សោទឹកប្រាក់
+        tag(1, "12") +
         tag29 +
-        tag(52, "5999") +                # MCC
-        tag(53, "840") +                 # 840 = USD
-        tag(54, amt_str) +               # Transaction Amount
-        tag(58, "KH") +                  # Country
+        tag(52, "5999") +
+        tag(53, "840") +                  # 840 = USD
+        tag(54, amt_str) +                # ចំនួនទឹកប្រាក់ចាក់សោ
+        tag(58, "KH") +
         tag(59, MERCHANT_NAME) +
         tag(60, MERCHANT_CITY) +
-        tag62 +
         "6304"
     )
     return payload + _crc16_khqr(payload)
 
-def _generate_khqr_and_md5(uid, amount, bill_no):
+def _generate_khqr_and_md5(uid, amount):
     amt = round(float(amount), 2)
-    # ព្យាយាមប្រើ Library ផ្លូវការរបស់ Bakong ជាមុន
+    # បង្កើត QR តាមទម្រង់ដែលគ្រប់ App ធនាគារទាំងអស់គាំទ្រ
+    qr_str = _build_correct_khqr(BANK_ACCOUNT, amt)
+    
+    # គណនា MD5 សម្រាប់ Verify តាមស្តង់ដារផ្លូវការរបស់ Bakong
+    md5_str = None
     if KHQR:
         try:
-            khqr_inst = KHQR(BAKONG_TOKEN)
-            qr_str = khqr_inst.create_qr(
-                bank_account=BANK_ACCOUNT,
-                merchant_name=MERCHANT_NAME,
-                merchant_city=MERCHANT_CITY,
-                amount=amt,
-                currency="USD",
-                bill_number=bill_no,
-                static=False
-            )
-            if qr_str and qr_str.startswith("000201"):
-                md5_str = khqr_inst.generate_md5(qr_str)
-                return qr_str, md5_str
-        except Exception as e:
-            logger.warning(f"Bakong library failed, fallback manual: {e}")
+            md5_str = KHQR(BAKONG_TOKEN).generate_md5(qr_str)
+        except Exception:
+            pass
 
-    # បើ Library Error ប្រើ Manual Generator ដែលមាន Bill No ត្រឹមត្រូវ
-    import hashlib
-    qr_str = _build_dynamic_khqr(BANK_ACCOUNT, amt, bill_no)
-    md5_str = hashlib.md5(qr_str.encode("utf-8")).hexdigest()
+    if not md5_str:
+        import hashlib
+        md5_str = hashlib.md5(qr_str.encode("utf-8")).hexdigest()
+
     return qr_str, md5_str
 
 def _check_bakong(md5, amount, start_ts):
@@ -242,10 +230,10 @@ def _check_bakong(md5, amount, start_ts):
             status = KHQR(BAKONG_TOKEN).check_payment(str(md5))
             if status in ("PAID", "SUCCESS", True):
                 return True
-        except Exception as e:
-            logger.warning(f"SDK check error: {e}")
+        except Exception:
+            pass
 
-    # 2. ឆែកផ្ទាល់តាម Bakong Open API Endpoint (ជៀសវាង SDK មានបញ្ហា)
+    # 2. ឆែកផ្ទាល់ជាមួយ Bakong Open API
     try:
         url = "https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5"
         headers = {
@@ -255,8 +243,8 @@ def _check_bakong(md5, amount, start_ts):
         res = requests.post(url, json={"md5": str(md5)}, headers=headers, timeout=10).json()
         if res.get("responseCode") == 0 and res.get("data", {}).get("status") == "SUCCESS":
             return True
-    except Exception as e:
-        logger.error(f"Bakong API direct check error: {e}")
+    except Exception:
+        pass
 
     return False
 
@@ -433,8 +421,7 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
 
 def _send_deposit_qr(uid, amount):
     uid_str = str(uid)
-    bill_no = f"TRX{uid}{int(time.time())}"[-15:]
-    qr_str, md5_hash = _generate_khqr_and_md5(uid, amount, bill_no)
+    qr_str, md5_hash = _generate_khqr_and_md5(uid, amount)
     
     if not qr_str:
         bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
@@ -1960,14 +1947,14 @@ def handle_messages(message):
     bot.send_message(uid, "❓ សូមជ្រើសរើស Menu ខាងក្រោម៖", reply_markup=user_kb(uid))
 
 # ═══════════════════════════════════════════════════════════
-#  FLASK RUN (គាំទ្រទាំង Local និង Cloud Server)
+#  FLASK RUN
 # ═══════════════════════════════════════════════════════════
 flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 @flask_app.route("/")
 def health():
-    return jsonify({"status": "running", "service": "KhmerSMM Bot", "type": "Dynamic KHQR"})
+    return jsonify({"status": "running", "service": "KhmerSMM Bot", "type": "Dynamic KHQR Fixed"})
 
 def run_flask():
     port = int(os.environ.get("PORT", 5055))
