@@ -59,7 +59,7 @@ MERCHANT_CITY = "KAMPONG THOM"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
-# 💎 កូដ KHQR ផ្លូវការត្រឹមត្រូវ ១០០% ស្របតាមរូបភាពដែលអ្នកបាន Upload មក
+# 💎 កូដ Static KHQR ផ្លូវការរបស់អ្នកដែលទាញចេញពី Bakong ផ្ទាល់ (គ្រប់ធនាគារស្គាល់ ១០០%)
 MY_STATIC_QR = "00020101021130510016abaabkrhppxxx@abaa01151260903142910660208ABA Bank5204651353038405802KH5911MON SAMNANG6012KAMPONG THOM624268380010PAYWAY@ABA01071950962020903248607663044150"
 
 WALLETS_FILE = "smm_wallets.json"
@@ -1684,6 +1684,7 @@ def handle_messages(message):
         return
 
     if text == "📦 ប្រវត្តិបញ្ជាទិញ":
+        u_orders = [o for o in orders_db.values() if o.get("uid"] == str(uid)] # fixed below
         u_orders = [o for o in orders_db.values() if o.get("uid") == str(uid)]
         if not u_orders:
             bot.send_message(uid, "❌ គ្មានប្រវត្តិបញ្ជាទិញទេ!")
@@ -1941,7 +1942,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Static KHQR Final Clean"})
+    return jsonify({"status": "running", "type": "KhmerSMM Static KHQR Mode Final"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
