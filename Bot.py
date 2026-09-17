@@ -47,19 +47,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════
-#  CONFIG
+#  CONFIG & OFFICIAL KHQR STRING
 # ═══════════════════════════════════════════════════════════
 BOT_TOKEN = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
 ADMIN_ID = 5915683588
 
 BAKONG_TOKEN = "rbkMVUSQPooaey51jm1cD5ECnzmHyeNX7fBX4Afc16GU8k"
 BANK_ACCOUNT = "mon_samnang@bkrt"
-MERCHANT_NAME = "MON SAMNANG"
-MERCHANT_CITY = "KAMPONG THOM"
+MERCHANT_NAME = "Khmer SMM"
+MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
-# 💎 កូដ Static KHQR ផ្លូវការរបស់អ្នកដែលទាញចេញពី Bakong ផ្ទាល់ (គ្រប់ធនាគារស្គាល់ ១០០%)
+# 💎 កូដ Static KHQR ផ្លូវការរបស់អ្នក
 MY_STATIC_QR = "00020101021130510016abaabkrhppxxx@abaa01151260903142910660208ABA Bank5204651353038405802KH5911MON SAMNANG6012KAMPONG THOM624268380010PAYWAY@ABA01071950962020903248607663044150"
 
 WALLETS_FILE = "smm_wallets.json"
@@ -237,7 +237,7 @@ def _check_bakong(md5, amount, start_ts):
 # ═══════════════════════════════════════════════════════════
 #  DRAW STYLED ABA PAY TEMPLATE
 # ═══════════════════════════════════════════════════════════
-def _generate_styled_khqr_image(qr_str, amount, merchant_name="MON SAMNANG"):
+def _generate_styled_khqr_image(qr_str, amount, merchant_name="Khmer SMM"):
     card_w, card_h = 750, 1150
     card = Image.new("RGBA", (card_w, card_h), "#FFFFFF")
     draw = ImageDraw.Draw(card)
@@ -340,7 +340,7 @@ def _build_caption(amount, remaining_sec):
     return (
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"👤 ឈ្មោះ: <b>MON SAMNANG</b>\n"
+        f"👤 ឈ្មោះ: <b>Khmer SMM</b>\n"
         f"💰 ចំនួនទឹកប្រាក់ត្រូវវាយបញ្ចូល: <b>${amount:.2f} USD</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
@@ -441,7 +441,7 @@ def _send_deposit_qr(uid, amount):
         pass
 
     try:
-        buf = _generate_styled_khqr_image(qr_str, amount, "MON SAMNANG")
+        buf = _generate_styled_khqr_image(qr_str, amount, "Khmer SMM")
         sent = bot.send_photo(uid, buf, caption=_build_caption(amount, DEPOSIT_EXPIRE_SEC))
     except Exception:
         sent = bot.send_message(
@@ -1023,7 +1023,7 @@ def handle_callbacks(call):
             return
         target_uid, amt = int(dep["uid"]), float(dep["amount"])
         if act == "approve":
-            if dep.get("status") == "confirmed":
+            if dep.get("status"] == "confirmed":
                 bot.answer_callback_query(call.id, "⚠️ ដាក់រួចហើយ!")
                 return
             add_bal(target_uid, amt)
@@ -1684,7 +1684,6 @@ def handle_messages(message):
         return
 
     if text == "📦 ប្រវត្តិបញ្ជាទិញ":
-        u_orders = [o for o in orders_db.values() if o.get("uid"] == str(uid)] # fixed below
         u_orders = [o for o in orders_db.values() if o.get("uid") == str(uid)]
         if not u_orders:
             bot.send_message(uid, "❌ គ្មានប្រវត្តិបញ្ជាទិញទេ!")
@@ -1942,7 +1941,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Static KHQR Mode Final"})
+    return jsonify({"status": "running", "type": "KhmerSMM Official PayWay QR Mode"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
