@@ -81,7 +81,7 @@ DEFAULT_KHMER_SMM = {
     "fb_page_fol": {"cat": "Facebook", "name": "👥 FB Page Followers", "rate": 2.20, "min": 100, "max": 50000, "api_service_id": 106},
     "fb_prof_fol": {"cat": "Facebook", "name": "👤 FB Profile Followers", "rate": 1.90, "min": 100, "max": 50000, "api_service_id": 107},
     "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
-    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 20000, "api_service_id": 110},
+    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
     "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
@@ -159,7 +159,7 @@ def smm_api_balance():
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
-#  STANDARD EMVCo KHQR ENCODER
+#  STANDARD EMVCo KHQR ENCODER (STRICT NBC FORMAT)
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -182,24 +182,24 @@ def _build_dynamic_khqr_manual(account_id: str, amount: float) -> str:
     tag29 = tag(29, sub29)
     amt_str = f"{amount:.2f}"
 
-    # រៀបចំលំដាប់លំដោយតាមក្បួន EMVCo / NBC KHQR ដោយគ្មានការស្ទួន
+    # បង្កើតតាមលំដាប់លំដោយ Tag 00 រហូតដល់ Tag 63
     payload = (
-        tag(0, "01") +                   # Tag 00 = "01" (Payload Format Indicator)
-        tag(1, "12") +                   # Tag 01 = "12" (Dynamic QR)
-        tag29 +                          # Tag 29 = Bakong Account
-        tag(52, "5999") +                # Tag 52 = MCC
-        tag(53, "840") +                 # Tag 53 = Currency (840 = USD)
-        tag(54, amt_str) +               # Tag 54 = Amount (ចាក់សោលុយ)
-        tag(58, "KH") +                  # Tag 58 = Country
-        tag(59, MERCHANT_NAME) +         # Tag 59 = Merchant Name
-        tag(60, MERCHANT_CITY) +         # Tag 60 = City
-        "6304"                           # Tag 63 = Checksum Header
+        tag(0, "01") +                   # 000201
+        tag(1, "12") +                   # 010212 (Dynamic QR)
+        tag29 +                          # 29xx...
+        tag(52, "5999") +                # 52045999
+        tag(53, "840") +                 # 5303840 (USD)
+        tag(54, amt_str) +               # 54xx (Amount)
+        tag(58, "KH") +                  # 5802KH
+        tag(59, MERCHANT_NAME) +         # 59xx
+        tag(60, MERCHANT_CITY) +         # 60xx
+        "6304"                           # Checksum Tag Header
     )
     return payload + _crc16_khqr(payload)
 
 def _generate_khqr(uid, amount, note=""):
     amt = round(float(amount), 2)
-    # ១. ដំណើរការតាម Library ផ្លូវការ
+    # ១. សាកល្បងហៅតាម Library ផ្លូវការ
     try:
         from bakong_khqr import KHQR
         qr = KHQR(BAKONG_TOKEN).create_qr(
@@ -214,9 +214,9 @@ def _generate_khqr(uid, amount, note=""):
         if qr and qr.startswith("000201"):
             return qr
     except Exception as e:
-        logger.warning(f"Library error, using built-in manual encoder: {e}")
+        logger.warning(f"Library fallback: {e}")
 
-    # ២. ដំណើរការតាម Manual Encoder ត្រឹមត្រូវ 100%
+    # ២. បង្កើតតាមក្បួន Manual ដែលត្រូវស្ដង់ដារ EMVCo ដាច់ខាត
     return _build_dynamic_khqr_manual(BANK_ACCOUNT, amt)
 
 def _check_bakong(md5, amount, start_ts):
@@ -342,7 +342,7 @@ def _build_caption(amount, remaining_sec):
         f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f} USD</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ដើម្បីទូទាត់ភ្លាមៗ (ទឹកប្រាក់នឹងលោតស្វ័យប្រវត្តិតាម App)"
+        f"📱 Scan ជាមួយ ABA, Bakong, Wing ដើម្បីទូទាត់ភ្លាមៗ"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -1943,7 +1943,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM KHQR Standard"})
+    return jsonify({"status": "running", "type": "KhmerSMM Dynamic KHQR Mode"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
