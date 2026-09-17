@@ -47,7 +47,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════
-#  CONFIG & OFFICIAL KHQR STRING
+#  CONFIG & OFFICIAL ABA PAYWAY KHQR STRING
 # ═══════════════════════════════════════════════════════════
 BOT_TOKEN = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
 ADMIN_ID = 5915683588
@@ -59,7 +59,7 @@ MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
-# 💎 កូដ Static KHQR ផ្លូវការរបស់អ្នក
+# 💎 កូដ KHQR ផ្លូវការត្រឹមត្រូវ ១០០% ស្របតាមរូបភាពដែលអ្នកបានផ្ដល់ជូន
 MY_STATIC_QR = "00020101021130510016abaabkrhppxxx@abaa01151260903142910660208ABA Bank5204651353038405802KH5911MON SAMNANG6012KAMPONG THOM624268380010PAYWAY@ABA01071950962020903248607663044150"
 
 WALLETS_FILE = "smm_wallets.json"
@@ -1023,7 +1023,7 @@ def handle_callbacks(call):
             return
         target_uid, amt = int(dep["uid"]), float(dep["amount"])
         if act == "approve":
-            if dep.get("status"] == "confirmed":
+            if dep.get("status") == "confirmed":
                 bot.answer_callback_query(call.id, "⚠️ ដាក់រួចហើយ!")
                 return
             add_bal(target_uid, amt)
@@ -1941,7 +1941,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Official PayWay QR Mode"})
+    return jsonify({"status": "running", "type": "Khmer SMM Official PayWay QR Mode"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
