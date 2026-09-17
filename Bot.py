@@ -58,7 +58,7 @@ MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
-# 💡 ជំនួសកូដ QR String របស់អ្នកនៅទីនេះ (យកមកពី Bakong/ABA App ផ្ទាល់របស់អ្នក)
+# 💎 ជំនួសកូដ QR String របស់អ្នកនៅត្រង់នេះ (Copy យកពី Bakong App ផ្ទាល់របស់អ្នកមកដាក់)
 MY_STATIC_QR = "00020101021129190011kh.gov.nbc.bakong0115samnang_mon@bkrt5204599953038405802KH5909KhmerSMM6010Phnom Penh6304"
 
 WALLETS_FILE = "smm_wallets.json"
@@ -458,7 +458,7 @@ def category_smm_kb():
 
 def smm_by_cat_kb(category, page=0, per_page=5):
     disc = discounts.get("smm", 0)
-    items = [(sid, s) for sid, s in services_db.items() if s.get("cat") == category]
+    items = [(sid, s) for sid, s in services_db.items() if s.get("cat"] == category]
     total_pages = max(1, (len(items) + per_page - 1) // per_page)
     start = page * per_page
     end = start + per_page
@@ -955,7 +955,7 @@ def handle_callbacks(call):
             return
         target_uid, amt = int(dep["uid"]), float(dep["amount"])
         if act == "approve":
-            if dep.get("status") == "confirmed":
+            if dep.get("status"] == "confirmed":
                 bot.answer_callback_query(call.id, "⚠️ ដាក់រួចហើយ!")
                 return
             add_bal(target_uid, amt)
@@ -1873,7 +1873,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Static KHQR Final"})
+    return jsonify({"status": "running", "type": "KhmerSMM Static KHQR Mode"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
