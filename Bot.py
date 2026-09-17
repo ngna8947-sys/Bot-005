@@ -52,8 +52,8 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
 ADMIN_ID = 5915683588
 
-# ⚠️ សូមបិទភ្ជាប់ (Paste) កូដអក្សរ QR ដែលអ្នក Copy ចេញពី App Bakong នៅទីនេះ៖
-BAKONG_STATIC_QR = "00020101021129370016bakongxxx..."
+# ✅ កូដ ABA KHQR ផ្លូវការពិតប្រាកដដែលស្កេនបានពី ABA Mobile
+ABA_STATIC_KHQR = "00020101021130510016abaakhppxxx@abaa01151260903142910660208ABA Bank5204651353038405802KH5911MON SAMNANG6012KAMPONG THOM624268380010PAYWAY@ABA01071950962020903248607663044150"
 
 MERCHANT_NAME = "KhmerSMM"
 MERCHANT_CITY = "Phnom Penh"
@@ -79,7 +79,7 @@ DEFAULT_KHMER_SMM = {
     "fb_page_fol": {"cat": "Facebook", "name": "👥 FB Page Followers", "rate": 2.20, "min": 100, "max": 50000, "api_service_id": 106},
     "fb_prof_fol": {"cat": "Facebook", "name": "👤 FB Profile Followers", "rate": 1.90, "min": 100, "max": 50000, "api_service_id": 107},
     "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
-    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 20000, "api_service_id": 110},
+    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
     "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
@@ -133,16 +133,11 @@ def get_disc_price(orig_price, disc_percent):
     if disc_percent <= 0: return orig_price
     return max(0.01, round(orig_price * (1 - disc_percent / 100.0), 2))
 
-# ═══════════════════════════════════════════════════════════
-#  GENERATE REAL BAKONG QR
-# ═══════════════════════════════════════════════════════════
 def _generate_khqr(uid, amount, note=""):
-    if BAKONG_STATIC_QR and len(BAKONG_STATIC_QR) > 20:
-        return BAKONG_STATIC_QR
-    return ""
+    return ABA_STATIC_KHQR
 
 # ═══════════════════════════════════════════════════════════
-#  DRAW STYLED ABA PAY TEMPLATE (ផ្ទុកកូដ Bakong ពិត)
+#  DRAW STYLED ABA PAY TEMPLATE (ABA BANK KHQR)
 # ═══════════════════════════════════════════════════════════
 def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     card_w, card_h = 750, 1050
@@ -203,7 +198,7 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     draw.ellipse([(center_x - 27, center_y - 27), (center_x + 27, center_y + 27)], fill="#000000")
     draw.text((center_x, center_y), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
 
-    draw.text((card_w // 2, box_y2 + 50), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
+    draw.text((card_w // 2, box_y2 + 50), "MON SAMNANG", fill="#1a2530", font=font_name, anchor="mm")
     draw.text((card_w // 2, box_y2 + 105), f"AMOUNT: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
 
     bg_curve = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
@@ -225,10 +220,11 @@ def _build_caption(amount, remaining_sec):
     return (
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"💰 ចំនួន: <b>${amount:.2f}</b>\n"
+        f"👤 ឈ្មោះគណនី: <b>MON SAMNANG</b>\n"
+        f"💰 ចំនួនត្រូវបាញ់: <b>${amount:.2f}</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ Bakong / ABA / Wing ឬគ្រប់ធនាគារ"
+        f"📱 Scan ជាមួយ ABA, Bakong, Wing ឬគ្រប់ធនាគារទាំងអស់"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -269,7 +265,7 @@ def _send_deposit_qr(uid, amount):
     uid_str = str(uid)
     qr_str = _generate_khqr(uid, amount, f"uid={uid} ${amount}")
     if not qr_str:
-        bot.send_message(uid, "⚠️ Admin មិនទាន់កំណត់កូដ QR ធនាគារនៅឡើយទេ!")
+        bot.send_message(uid, "⚠️ កំហុសក្នុងការបង្កើត QR Code!")
         return
 
     dep_id = f"dep_{uid}_{int(time.time())}"
@@ -292,7 +288,7 @@ def _send_deposit_qr(uid, amount):
             ADMIN_ID,
             f"📥 <b>ការស្នើដាក់លុយ!</b>\n"
             f"👤 <code>{uid_str}</code> | 💰 <b>${amount:.2f}</b>\n"
-            f"👉 <i>(ពិនិត្យ App Bakong របស់អ្នក ពេលឃើញលុយចូលពិត ចុចប៊ូតុងខាងក្រោម)</i>",
+            f"👉 <i>(សូមពិនិត្យមើល App ABA របស់អ្នក ពេលឃើញលុយចូលពិត សូមចុចប៊ូតុងខាងក្រោម)</i>",
             reply_markup=admin_kb_dep,
         )
     except: pass
@@ -877,6 +873,7 @@ def handle_callbacks(call):
             reply_markup=cancel_kb(),
         )
 
+    # --- Admin Deposit Manual Approval ---
     elif data.startswith("manual_dep:"):
         if uid != ADMIN_ID: return
         _, act, dep_id = data.split(":")
@@ -893,16 +890,27 @@ def handle_callbacks(call):
             dep["status"] = "confirmed"
             _save(STORE_DEP_FILE, store_deps)
             bot.answer_callback_query(call.id, "✅ បានបញ្ចូលលុយ")
+            bot.edit_message_text(
+                f"✅ <b>បានអនុម័តជោគជ័យ!</b>\n👤 <code>{target_uid}</code> ទទួលបាន <b>+${amt:.2f}</b>",
+                chat_id=uid,
+                message_id=call.message.message_id
+            )
             try:
                 bot.send_message(
                     target_uid,
-                    f"✅ <b>Admin បានបញ្ចូលលុយជូន:</b> +${amt:.2f}\n💳 សមតុល្យសរុប: <b>${bal(target_uid):.2f}</b>",
+                    f"✅ <b>ការដាក់ប្រាក់ទទួលបានជោគជ័យ!</b>\n💰 បញ្ចូល: <b>+${amt:.2f}</b>\n💳 សមតុល្យសរុប: <b>${bal(target_uid):.2f}</b>",
+                    reply_markup=user_kb(target_uid)
                 )
             except: pass
         elif act == "reject":
             dep["status"] = "rejected"
             _save(STORE_DEP_FILE, store_deps)
             bot.answer_callback_query(call.id, "❌ បដិសេធ")
+            bot.edit_message_text(
+                f"❌ <b>បានបដិសេធសំណើដាក់ប្រាក់!</b>\n👤 <code>{target_uid}</code> | ${amt:.2f}",
+                chat_id=uid,
+                message_id=call.message.message_id
+            )
             try:
                 bot.send_message(target_uid, "❌ សំណើដាក់ប្រាក់ត្រូវបានបដិសេធ។")
             except: pass
@@ -1517,7 +1525,7 @@ def handle_messages(message):
         waiting.pop(uid, None)
         bot.send_message(
             uid,
-            f"💸 <b>បញ្ចូលទឹកប្រាក់ស្វ័យប្រវត្តិតាម Bakong KHQR</b>\n"
+            f"💸 <b>បញ្ចូលទឹកប្រាក់ស្វ័យប្រវត្តិតាម Bakong / ABA KHQR</b>\n"
             f"💳 សមតុល្យបច្ចុប្បន្ន: <b>${bal(uid):.2f}</b>\n\n"
             f"👉 សូមជ្រើសរើសចំនួនប្រាក់ដែលចង់ដាក់៖",
             reply_markup=deposit_amt_kb(),
@@ -1782,7 +1790,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Full Feature Bot"})
+    return jsonify({"status": "running", "type": "KhmerSMM Bot - ABA Bank Verified"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
