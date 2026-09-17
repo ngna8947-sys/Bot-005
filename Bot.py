@@ -16,7 +16,7 @@ from telebot.types import (
 )
 
 def _ensure_deps():
-    # បន្ថែម bakong-khqr ឱ្យ Auto-install នៅពេល Run លើ GitHub/Cloud
+    # ធានាថាមាន library គ្រប់គ្រាន់ទាំងលើ Local និង Server
     pkgs = {
         "PIL": "pillow",
         "qrcode": "qrcode",
@@ -58,7 +58,7 @@ BOT_TOKEN = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
 ADMIN_ID = 5915683588
 
 BAKONG_TOKEN = "rbkMVUSQPooaey51jm1cD5ECnzmHyeNX7fBX4Afc16GU8k"
-BANK_ACCOUNT = "mon_samnang@bkrt"
+BANK_ACCOUNT = "samnang_mon@bkrt"
 MERCHANT_NAME = "KhmerSMM"
 MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
@@ -182,15 +182,13 @@ def _build_dynamic_khqr(account_id: str, amount: float) -> str:
     tag29 = tag(29, sub29)
     amt_str = f"{amount:.2f}"
 
-    # Tag 01 = "12" សម្រាប់ Dynamic KHQR (ចាក់សោលុយ)
-    # Tag 54 = Amount ជាក់លាក់
     payload = (
         tag(0, "01") +
-        tag(1, "12") +
+        tag(1, "12") +                   # 12 = Dynamic QR
         tag29 +
         tag(52, "5999") +
-        tag(53, "840") +
-        tag(54, amt_str) +
+        tag(53, "840") +                  # 840 = USD
+        tag(54, amt_str) +                # ចំនួនទឹកប្រាក់ចាក់សោ
         tag(58, "KH") +
         tag(59, MERCHANT_NAME) +
         tag(60, MERCHANT_CITY) +
@@ -213,7 +211,7 @@ def _generate_khqr(uid, amount, note=""):
         if qr and qr.startswith("000201"):
             return qr
     except Exception as e:
-        logger.warning(f"bakong_khqr library fallback: {e}")
+        logger.warning(f"bakong_khqr fallback: {e}")
     
     return _build_dynamic_khqr(BANK_ACCOUNT, round(float(amount), 2))
 
@@ -222,7 +220,7 @@ def _check_bakong(md5, amount, start_ts):
         from bakong_khqr import KHQR as _BK
         return _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID"
     except Exception as e:
-        logger.error(f"Error check_bakong: {e}")
+        logger.error(f"Check payment error: {e}")
         return False
 
 # ═══════════════════════════════════════════════════════════
@@ -331,7 +329,7 @@ def _build_caption(amount, remaining_sec):
     return (
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"👤 ឈ្មោះគណនី: <b>KhmerSMM</b>\n"
+        f"👤 ឈ្មោះគណនី: <b>{MERCHANT_NAME}</b>\n"
         f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f} USD</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
@@ -1926,19 +1924,21 @@ def handle_messages(message):
     bot.send_message(uid, "❓ សូមជ្រើសរើស Menu ខាងក្រោម៖", reply_markup=user_kb(uid))
 
 # ═══════════════════════════════════════════════════════════
-#  FLASK RUN
+#  FLASK RUN (គាំទ្រទាំង Local និង Cloud Server Port)
 # ═══════════════════════════════════════════════════════════
 flask_app = Flask(__name__)
 
 @flask_app.route("/health")
+@flask_app.route("/")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Dynamic KHQR Mode"})
+    return jsonify({"status": "running", "service": "KhmerSMM Bot", "type": "Dynamic KHQR"})
 
 def run_flask():
-    flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
+    port = int(os.environ.get("PORT", 5055))
+    flask_app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 if __name__ == "__main__":
-    logger.info("🚀 Full Bot is running...")
+    logger.info("🚀 KhmerSMM Full Bot is running...")
     threading.Thread(target=run_flask, daemon=True).start()
     
     while True:
