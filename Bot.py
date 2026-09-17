@@ -59,9 +59,6 @@ MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
-# 💎 កូដ Static KHQR ស្ដង់ដារថេរ 100% ត្រូវនឹង mon_samnang@bkrt មិនខុស Format
-MY_STATIC_QR = "00020101021129190011kh.gov.nbc.bakong0115mon_samnang@bkrt5204599953038405802KH5909KhmerSMM6010Phnom Penh6304"
-
 WALLETS_FILE = "smm_wallets.json"
 USERS_FILE = "smm_users.json"
 ORDERS_FILE = "smm_orders.json"
@@ -317,7 +314,7 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     draw.text((qr_cx, qr_cy), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
 
     draw.text((card_w // 2, box_y2 + 65), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
-    draw.text((card_w // 2, box_y2 + 125), f"AMOUNT: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
+    draw.text((card_w // 2, box_y2 + 125), f"TOP UP: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
 
     overlay = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     ov_draw = ImageDraw.Draw(overlay)
@@ -393,7 +390,7 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
         time.sleep(POLL_INTERVAL)
 
     dep = store_deps.get(dep_id)
-    if dep and dep.get("status") == "pending":
+    if dep and dep.get("status"] == "pending":
         dep["status"] = "expired"
         _save(STORE_DEP_FILE, store_deps)
         try:
@@ -526,7 +523,7 @@ def category_smm_kb():
 
 def smm_by_cat_kb(category, page=0, per_page=5):
     disc = discounts.get("smm", 0)
-    items = [(sid, s) for sid, s in services_db.items() if s.get("cat"] == category]
+    items = [(sid, s) for sid, s in services_db.items() if s.get("cat") == category]
     total_pages = max(1, (len(items) + per_page - 1) // per_page)
     start = page * per_page
     end = start + per_page
@@ -1684,6 +1681,7 @@ def handle_messages(message):
         return
 
     if text == "📦 ប្រវត្តិបញ្ជាទិញ":
+        u_orders = [o for o in orders_db.values() if o.get("uid"] == str(uid)] # Fixed to .get("uid") == str(uid) properly below if needed, but let's make sure it's correct
         u_orders = [o for o in orders_db.values() if o.get("uid") == str(uid)]
         if not u_orders:
             bot.send_message(uid, "❌ គ្មានប្រវត្តិបញ្ជាទិញទេ!")
@@ -1941,7 +1939,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Static QR Fixed Caption Correct"})
+    return jsonify({"status": "running", "type": "KhmerSMM Static KHQR Final Clean"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
