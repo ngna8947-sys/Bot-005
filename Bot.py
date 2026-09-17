@@ -69,27 +69,25 @@ API_CONFIG_FILE = "smm_api_config.json"
 DISCOUNTS_FILE = "smm_discounts.json"
 
 DEFAULT_KHMER_SMM = {
+    # Facebook
     "fb_like_kh": {"cat": "Facebook", "name": "👍 FB Likes ខ្មែរ Real", "rate": 1.50, "min": 50, "max": 20000, "api_service_id": 101},
     "fb_like_mix": {"cat": "Facebook", "name": "👍 FB Likes Mix Global", "rate": 0.80, "min": 100, "max": 100000, "api_service_id": 102},
     "fb_react_love": {"cat": "Facebook", "name": "❤️ FB React Love", "rate": 1.20, "min": 50, "max": 20000, "api_service_id": 103},
     "fb_react_haha": {"cat": "Facebook", "name": "😆 FB React Haha", "rate": 1.20, "min": 50, "max": 20000, "api_service_id": 104},
-    "fb_react_care": {"cat": "Facebook", "name": "🥰 FB React Care", "rate": 1.20, "min": 50, "max": 20000, "api_service_id": 105},
     "fb_page_fol": {"cat": "Facebook", "name": "👥 FB Page Followers", "rate": 2.20, "min": 100, "max": 50000, "api_service_id": 106},
     "fb_prof_fol": {"cat": "Facebook", "name": "👤 FB Profile Followers", "rate": 1.90, "min": 100, "max": 50000, "api_service_id": 107},
     "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
     "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
-    "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
+    # TikTok
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
     "tt_follow": {"cat": "TikTok", "name": "👥 TikTok Followers (មិនស្រក)", "rate": 2.80, "min": 100, "max": 20000, "api_service_id": 203},
-    "tt_share": {"cat": "TikTok", "name": "🔁 TikTok Shares/Repost", "rate": 0.50, "min": 100, "max": 50000, "api_service_id": 204},
+    # Telegram
     "tg_member": {"cat": "Telegram", "name": "✈️ Telegram Members", "rate": 1.80, "min": 100, "max": 50000, "api_service_id": 301},
     "tg_post_view": {"cat": "Telegram", "name": "👁 TG Post Views", "rate": 0.10, "min": 100, "max": 100000, "api_service_id": 302},
-    "tg_react": {"cat": "Telegram", "name": "🔥 TG Reactions (Fire)", "rate": 0.60, "min": 50, "max": 20000, "api_service_id": 303},
+    # YouTube & IG
     "yt_view": {"cat": "YouTube", "name": "👁 YouTube Views", "rate": 1.80, "min": 500, "max": 50000, "api_service_id": 401},
-    "yt_sub": {"cat": "YouTube", "name": "🔴 YouTube Subscribers", "rate": 18.00, "min": 50, "max": 2000, "api_service_id": 402},
-    "ig_follow": {"cat": "Instagram", "name": "📸 IG Followers (HQ)", "rate": 1.60, "min": 100, "max": 30000, "api_service_id": 501},
-    "ig_like": {"cat": "Instagram", "name": "❤️ IG Post Likes", "rate": 0.70, "min": 100, "max": 30000, "api_service_id": 502}
+    "ig_follow": {"cat": "Instagram", "name": "📸 IG Followers (HQ)", "rate": 1.60, "min": 100, "max": 30000, "api_service_id": 501}
 }
 
 def _load(path, default):
@@ -136,30 +134,8 @@ def get_disc_price(orig_price, disc_percent):
         return orig_price
     return max(0.01, round(orig_price * (1 - disc_percent / 100.0), 2))
 
-def smm_api_order(service_id, link, quantity):
-    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
-    if not url or not key:
-        return {"error": "Admin មិនទាន់កំណត់ API"}
-    payload = {"key": key, "action": "add", "service": service_id, "link": link, "quantity": quantity}
-    try:
-        return requests.post(url, data=payload, timeout=25).json()
-    except Exception as e:
-        return {"error": str(e)}
-
-def smm_api_balance():
-    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
-    if not url or not key:
-        return "❌ មិនទាន់កំណត់ API"
-    try:
-        resp = requests.post(url, data={"key": key, "action": "balance"}, timeout=15).json()
-        if "balance" in resp:
-            return f"${float(resp['balance']):.2f} {resp.get('currency', 'USD')}"
-        return f"Error: {resp.get('error', 'Unknown')}"
-    except Exception as e:
-        return f"Error: {e}"
-
 # ═══════════════════════════════════════════════════════════
-#  OFFICIAL NBC KHQR STANDARD EMVCo (បុគ្គល & ក្រុមហ៊ុន)
+#  STANDARD DYNAMIC KHQR (ស្គាល់ Amount ស្វ័យប្រវត្តិតាម NBC)
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -172,25 +148,28 @@ def _crc16_khqr(data: str) -> str:
                 crc = (crc << 1) & 0xFFFF
     return f"{crc:04X}"
 
-def _build_official_khqr(account_id: str, amount: float = 0.0) -> str:
+def _build_dynamic_khqr(account_id: str, amount: float, bill_no: str) -> str:
     def tag(tid: int, val: str) -> str:
         val_str = str(val)
         return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
 
-    # Tag 29: Bakong Standard Account Structure
     sub29 = tag(0, account_id)
     tag29 = tag(29, sub29)
 
-    # បង្កើត Tag តាមស្ដង់ដារគណនីបាគងបុគ្គល (010211 = Static KHQR)
+    sub62 = tag(1, str(bill_no)[:25])
+    tag62 = tag(62, sub62)
+
     payload = (
-        tag(0, "01") +             # Payload Format
-        tag(1, "11") +             # 11 = Static QR (ស្គាល់គ្រប់ App ធនាគារទាំងអស់)
-        tag29 +                    # Account: samnang_mon@bkrt
-        tag(52, "5999") +          # Merchant Category
-        tag(53, "840") +           # Currency USD
-        tag(58, "KH") +            # Country Code
-        tag(59, "KhmerSMM") +      # Name
-        tag(60, "Phnom Penh") +    # City
+        tag(0, "01") +
+        tag(1, "12") +
+        tag29 +
+        tag(52, "5999") +
+        tag(53, "840") +
+        tag(54, f"{amount:.2f}") +
+        tag(58, "KH") +
+        tag(59, "KhmerSMM") +
+        tag(60, "Phnom Penh") +
+        tag62 +
         "6304"
     )
     return payload + _crc16_khqr(payload)
@@ -211,9 +190,7 @@ def _generate_khqr(uid, amount, note=""):
             return qr
     except Exception:
         pass
-    
-    # ប្រើក្បួនផ្លូវការធនាគារជាតិ មិនខុសទម្រង់ឡើយ
-    return _build_official_khqr(BANK_ACCOUNT, round(float(amount), 2))
+    return _build_dynamic_khqr(BANK_ACCOUNT, round(float(amount), 2), (note or f"uid{uid}")[:25])
 
 def _check_bakong(md5, amount, start_ts):
     try:
@@ -223,74 +200,112 @@ def _check_bakong(md5, amount, start_ts):
         return False
 
 # ═══════════════════════════════════════════════════════════
-#  DRAW STYLED BAKONG PAY TEMPLATE (ពណ៌ក្រហម Bakong)
+#  គូរផ្ទាំងរូបភាព ABA PAY ដូចគំរូរូបភាពដើម ១០០%
 # ═══════════════════════════════════════════════════════════
 def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
-    card_w, card_h = 750, 1050
+    card_w, card_h = 750, 1150
     card = Image.new("RGBA", (card_w, card_h), "#FFFFFF")
     draw = ImageDraw.Draw(card)
 
-    draw.rectangle([(0, 0), (card_w, 28)], fill="#c8102e")
+    # 1. ឆ្នូតខៀវខាងលើ (Top Bar & Corner Accent)
+    draw.rectangle([(0, 0), (card_w, 35)], fill="#00465c")
+    draw.polygon([(0, 35), (45, 35), (0, 75)], fill="#00465c")
 
-    font_header, font_slogan, font_name, font_khqr_small, font_amt, font_dollar = None, None, None, None, None, None
+    # 2. Fonts
+    font_aba, font_pay, font_slogan, font_name, font_khqr_small, font_amt, font_dollar = (
+        None, None, None, None, None, None, None
+    )
     for f_bold in ["arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "DejaVuSans-Bold.ttf"]:
         try:
-            font_header = ImageFont.truetype(f_bold, 54)
-            font_name = ImageFont.truetype(f_bold, 42)
+            font_aba = ImageFont.truetype(f_bold, 54)
+            font_pay = ImageFont.truetype(f_bold, 54)
+            font_name = ImageFont.truetype(f_bold, 40)
             font_khqr_small = ImageFont.truetype(f_bold, 28)
-            font_amt = ImageFont.truetype(f_bold, 30)
-            font_dollar = ImageFont.truetype(f_bold, 32)
+            font_amt = ImageFont.truetype(f_bold, 32)
+            font_dollar = ImageFont.truetype(f_bold, 30)
             break
-        except:
-            pass
+        except: pass
 
     for f_reg in ["arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "DejaVuSans.ttf"]:
         try:
             font_slogan = ImageFont.truetype(f_reg, 24)
             break
-        except:
-            pass
+        except: pass
 
-    if not font_header:
-        font_header = font_name = font_slogan = font_khqr_small = font_amt = font_dollar = ImageFont.load_default()
+    if not font_aba:
+        font_aba = font_pay = font_name = font_slogan = font_khqr_small = font_amt = font_dollar = ImageFont.load_default()
 
-    draw.text((card_w // 2, 100), "BAKONG PAY", fill="#c8102e", font=font_header, anchor="mm")
-    draw.text((card_w // 2, 170), "Scan. Pay. Done.", fill="#111111", font=font_slogan, anchor="mm")
+    # 3. ABA' PAY Title (ABA' ពណ៌ខៀវចាស់ + PAY ពណ៌ផ្ទៃមេឃ)
+    aba_txt = "ABA'"
+    pay_txt = " PAY"
+    b_aba = font_aba.getbbox(aba_txt)
+    b_pay = font_pay.getbbox(pay_txt)
+    w_aba = b_aba[2] - b_aba[0]
+    w_pay = b_pay[2] - b_pay[0]
+    start_x = (card_w - (w_aba + w_pay)) // 2
 
-    qr_box_size = 440
-    box_x1 = (card_w - qr_box_size) // 2
-    box_y1 = 225
-    box_x2, box_y2 = box_x1 + qr_box_size, box_y1 + qr_box_size
-    draw.rounded_rectangle([(box_x1, box_y1), (box_x2, box_y2)], radius=36, outline="#d6d9dc", width=5)
+    draw.text((start_x, 115), aba_txt, fill="#00465c", font=font_aba)
+    draw.text((start_x + w_aba, 115), pay_txt, fill="#00a3b8", font=font_pay)
+    draw.text((card_w // 2, 190), "Scan. Pay. Done.", fill="#111111", font=font_slogan, anchor="mm")
 
+    # 4. QR Code & Bracket Frame (ជ្រុង ៤ ព័ទ្ធជុំវិញ QR ដូចក្នុងរូបភាព)
+    qr_inner_size = 380
+    qr_cx, qr_cy = card_w // 2, 450
+    box_x1 = qr_cx - (qr_inner_size // 2) - 25
+    box_y1 = qr_cy - (qr_inner_size // 2) - 25
+    box_x2 = qr_cx + (qr_inner_size // 2) + 25
+    box_y2 = qr_cy + (qr_inner_size // 2) + 25
+
+    # គូសសញ្ញាជ្រុង ៤
+    arm = 50
+    bracket_color = "#c2c7cc"
+    bw = 6
+    # ជ្រុងឆ្វេងលើ
+    draw.line([(box_x1, box_y1 + arm), (box_x1, box_y1 + 18)], fill=bracket_color, width=bw)
+    draw.arc([(box_x1, box_y1), (box_x1 + 36, box_y1 + 36)], 180, 270, fill=bracket_color, width=bw)
+    draw.line([(box_x1 + 18, box_y1), (box_x1 + arm, box_y1)], fill=bracket_color, width=bw)
+    # ជ្រុងស្ដាំលើ
+    draw.line([(box_x2 - arm, box_y1), (box_x2 - 18, box_y1)], fill=bracket_color, width=bw)
+    draw.arc([(box_x2 - 36, box_y1), (box_x2, box_y1 + 36)], 270, 360, fill=bracket_color, width=bw)
+    draw.line([(box_x2, box_y1 + 18), (box_x2, box_y1 + arm)], fill=bracket_color, width=bw)
+    # ជ្រុងឆ្វេងក្រោម
+    draw.line([(box_x1, box_y2 - arm), (box_x1, box_y2 - 18)], fill=bracket_color, width=bw)
+    draw.arc([(box_x1, box_y2 - 36), (box_x1 + 36, box_y2)], 90, 180, fill=bracket_color, width=bw)
+    draw.line([(box_x1 + 18, box_y2), (box_x1 + arm, box_y2)], fill=bracket_color, width=bw)
+    # ជ្រុងស្ដាំក្រោម
+    draw.line([(box_x2 - arm, box_y2), (box_x2 - 18, box_y2)], fill=bracket_color, width=bw)
+    draw.arc([(box_x2 - 36, box_y2 - 36), (box_x2, box_y2)], 0, 90, fill=bracket_color, width=bw)
+    draw.line([(box_x2, box_y2 - arm), (box_x2, box_y2 - 18)], fill=bracket_color, width=bw)
+
+    # បិទភ្ជាប់ QR
     qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=10, border=0)
     qr.add_data(qr_str)
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="#000000", back_color="#FFFFFF").convert("RGBA")
+    qr_img = qr_img.resize((qr_inner_size, qr_inner_size), Image.Resampling.LANCZOS)
+    card.paste(qr_img, (qr_cx - (qr_inner_size // 2), qr_cy - (qr_inner_size // 2)))
 
-    inner_qr_size = 360
-    qr_img = qr_img.resize((inner_qr_size, inner_qr_size), Image.Resampling.LANCZOS)
-    qr_px = (card_w - inner_qr_size) // 2
-    qr_py = box_y1 + (qr_box_size - inner_qr_size) // 2
-    card.paste(qr_img, (qr_px, qr_py))
+    # សញ្ញាដុល្លារ ($) នៅកណ្តាល QR Code
+    draw.ellipse([(qr_cx - 32, qr_cy - 32), (qr_cx + 32, qr_cy + 32)], fill="#FFFFFF")
+    draw.ellipse([(qr_cx - 27, qr_cy - 27), (qr_cx + 27, qr_cy + 27)], fill="#000000")
+    draw.text((qr_cx, qr_cy), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
 
-    center_x = card_w // 2
-    center_y = qr_py + (inner_qr_size // 2)
-    draw.ellipse([(center_x - 32, center_y - 32), (center_x + 32, center_y + 32)], fill="#FFFFFF")
-    draw.ellipse([(center_x - 27, center_y - 27), (center_x + 27, center_y + 27)], fill="#c8102e")
-    draw.text((center_x, center_y), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
+    # 5. ឈ្មោះ KhmerSMM & ចំនួនទឹកប្រាក់
+    draw.text((card_w // 2, box_y2 + 65), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
+    draw.text((card_w // 2, box_y2 + 125), f"AMOUNT: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
 
-    draw.text((card_w // 2, box_y2 + 50), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
-    draw.text((card_w // 2, box_y2 + 105), f"AMOUNT: ${amount:.2f} USD", fill="#c8102e", font=font_amt, anchor="mm")
-
-    bg_curve = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
-    bg_draw = ImageDraw.Draw(bg_curve)
-    bg_draw.rounded_rectangle([(card_w - 240, card_h - 180), (card_w + 120, card_h + 120)], radius=90, fill="#c8102e")
-    card = Image.alpha_composite(card, bg_curve)
+    # 6. ក្បាច់ក្រហម ABA ផ្នែកខាងស្តាំក្រោម (Bottom-Right ABA Wave Accent)
+    overlay = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+    ov_draw = ImageDraw.Draw(overlay)
+    ov_draw.rounded_rectangle([(card_w - 250, card_h - 200), (card_w + 120, card_h + 120)], radius=95, fill="#d61b36")
+    ov_draw.rounded_rectangle([(card_w - 170, card_h - 120), (card_w + 120, card_h + 120)], radius=60, fill="#FFFFFF")
+    ov_draw.rectangle([(0, card_h - 30), (card_w, card_h)], fill="#00465c")
+    card = Image.alpha_composite(card, overlay)
     draw = ImageDraw.Draw(card)
 
-    draw.text((55, card_h - 100), "Member of", fill="#5a6872", font=ImageFont.load_default())
-    draw.text((55, card_h - 78), "KHQR", fill="#c8102e", font=font_khqr_small)
+    # 7. ស្លាក Member of KHQR
+    draw.text((55, card_h - 130), "Member of", fill="#5a6872", font=ImageFont.load_default())
+    draw.text((55, card_h - 105), "KHQR", fill="#c8102e", font=font_khqr_small)
 
     buf = io.BytesIO()
     card.convert("RGB").save(buf, format="PNG", quality=95)
@@ -303,10 +318,10 @@ def _build_caption(amount, remaining_sec):
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 ឈ្មោះគណនី: <b>KhmerSMM</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b>\n"
+        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b> (បានកំណត់ស្វ័យប្រវត្តិក្នុង QR)\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ Bakong, ABA, Wing ឬគ្រប់ធនាគារ"
+        f"📱 Scan ជាមួយ ABA, Bakong, Wing ឬគ្រប់ធនាគារ"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -940,11 +955,7 @@ def handle_callbacks(call):
             del games_db[gkey]
             _save(GAMES_FILE, games_db)
             bot.answer_callback_query(call.id, "✅ បានលុបហ្គេមរួចរាល់")
-            bot.edit_message_text(
-                "🗑️ បានលុបហ្គេមនេះចេញពីបញ្ជីលក់!",
-                chat_id=uid,
-                message_id=call.message.message_id,
-            )
+            bot.edit_message_text("🗑️ បានលុបហ្គេមនេះចេញពីបញ្ជីលក់!", chat_id=uid, message_id=call.message.message_id)
 
     elif data.startswith("del_acc:"):
         if uid != ADMIN_ID: return
@@ -953,11 +964,7 @@ def handle_callbacks(call):
             del accounts_db[aid]
             _save(ACCOUNTS_FILE, accounts_db)
             bot.answer_callback_query(call.id, "✅ បានលុបអាខោនរួចរាល់")
-            bot.edit_message_text(
-                "🗑️ បានលុបមុខទំនិញអាខោននេះចោល!",
-                chat_id=uid,
-                message_id=call.message.message_id,
-            )
+            bot.edit_message_text("🗑️ បានលុបមុខទំនិញអាខោននេះចោល!", chat_id=uid, message_id=call.message.message_id)
 
     elif data.startswith("adm_add_stock:"):
         if uid != ADMIN_ID: return
@@ -1903,7 +1910,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Valid KHQR"})
+    return jsonify({"status": "running", "type": "KhmerSMM Valid KHQR Dynamic"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
