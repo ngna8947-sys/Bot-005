@@ -154,7 +154,7 @@ def smm_api_balance():
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
-#  BAKONG OFFICIAL SDK & BACKUP DYNAMIC KHQR ENGINE
+#  STATIC KHQR GENERATOR (គណនីបាគងផ្ទាល់ខ្លួន 100% ស្គាល់គ្រប់ App)
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -167,50 +167,28 @@ def _crc16_khqr(data: str) -> str:
                 crc = (crc << 1) & 0xFFFF
     return f"{crc:04X}"
 
-def _build_safe_dynamic_khqr(account_id: str, amount: float, bill_no: str) -> str:
+def _build_static_khqr(account_id: str) -> str:
     def tag(tid: int, val: str) -> str:
         val_str = str(val)
         return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
 
-    # Tag 29: Bakong Account Info format
     sub29 = tag(0, "kh.gov.nbc.bakong") + tag(1, account_id)
     tag29 = tag(29, sub29)
 
-    sub62 = tag(1, str(bill_no)[:25]) + tag(7, "KhmerSMM")
-    tag62 = tag(62, sub62)
-
     payload = (
         tag(0, "01") +
-        tag(1, "12") +                 # 12 = Dynamic QR (មាន Amount ស្រាប់)
+        tag(1, "11") +                 # 11 = Static QR (គណនីបុគ្គលស្គាល់គ្រប់ធនាគារ)
         tag29 +
         tag(52, "5999") +
         tag(53, "840") +               # USD
-        tag(54, f"{amount:.2f}") +     # Amount ស្វ័យប្រវត្តិ
         tag(58, "KH") +
         tag(59, "KhmerSMM") +
         tag(60, "Phnom Penh") +
-        tag62 +
         "6304"
     )
     return payload + _crc16_khqr(payload)
 
 def _generate_khqr(uid, amount, note=""):
-    # ព្យាយាមប្រើប្រាស់ Bakong SDK ផ្លូវការជាមុន
-    try:
-        from bakong_khqr import KHQR
-        res = KHQR(BAKONG_TOKEN).generate_qr_string(
-            bank_account=BANK_ACCOUNT,
-            merchant_name=MERCHANT_NAME,
-            merchant_city=MERCHANT_CITY,
-            amount=round(float(amount), 2),
-            currency="USD",
-            bill_number=(note or f"uid{uid}")[:25]
-        )
-        if res:
-            return res
-    except Exception:
-        pass
-
     try:
         from bakong_khqr import KHQR
         qr = KHQR(BAKONG_TOKEN).create_qr(
@@ -220,15 +198,14 @@ def _generate_khqr(uid, amount, note=""):
             amount=round(float(amount), 2),
             currency="USD",
             bill_number=(note or f"uid{uid}")[:25],
-            static=False,
+            static=True,
         )
         if qr and qr.startswith("000201"):
             return qr
     except Exception:
         pass
     
-    # ប្រសិនបើ SDK មានបញ្ហា ប្រើប្រាស់ Safe Dynamic Generator ជំនួសវិញភ្លាមៗ
-    return _build_safe_dynamic_khqr(BANK_ACCOUNT, round(float(amount), 2), (note or f"uid{uid}")[:25])
+    return _build_static_khqr(BANK_ACCOUNT)
 
 def _check_bakong(md5, amount, start_ts):
     try:
@@ -238,7 +215,7 @@ def _check_bakong(md5, amount, start_ts):
         return False
 
 # ═══════════════════════════════════════════════════════════
-#  DRAW STYLED ABA PAY TEMPLATE (រចនាស្អាតដូចគំរូដើម)
+#  DRAW STYLED ABA PAY TEMPLATE
 # ═══════════════════════════════════════════════════════════
 def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     card_w, card_h = 750, 1150
@@ -344,7 +321,7 @@ def _build_caption(amount, remaining_sec):
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 ឈ្មោះគណនី: <b>KhmerSMM</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b> (បានកំណត់ស្វ័យប្រវត្តិក្នុង QR)\n"
+        f"💰 ចំនួនទឹកប្រាក់ដែលต้องវាយបញ្ចូល: <b>${amount:.2f}</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"📱 Scan ជាមួយ ABA, Bakong, Wing ឬគ្រប់ធនាគារ"
@@ -1263,7 +1240,7 @@ def handle_messages(message):
         step["rate"] = rate
         step["step"] = "admin_smm_minmax"
         waiting[uid] = step
-        bot.send_message(uid, "🔢 សូមបញ្ចូលចំនួន <b>Min និង Max</b> ចន្លោះដកឃ្លា (ឧ: <code>100 10000</code>):", reply_markup=cancel_kb())
+        bot.send_message(uid, "🔢 សូមបញ្ចូលចំនួន <b>Min និង Max</b> ចន្លោះដកឃ្លា (ឧ: <code>100 10000</b>):", reply_markup=cancel_kb())
         return
 
     if uid == ADMIN_ID and isinstance(step, dict) and step.get("step") == "admin_smm_minmax":
@@ -1687,7 +1664,7 @@ def handle_messages(message):
         return
 
     if text == "📦 ប្រវត្តិបញ្ជាទិញ":
-        u_orders = [o for o in orders_db.values() if o.get("uid") == str(uid)]
+        u_orders = [o for o in orders_db.values() if o.get("uid"] == str(uid)]
         if not u_orders:
             bot.send_message(uid, "❌ គ្មានប្រវត្តិបញ្ជាទិញទេ!")
             return
@@ -1939,12 +1916,12 @@ def handle_messages(message):
 
 # ═══════════════════════════════════════════════════════════
 #  FLASK RUN
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════_═══════════════════════════════════
 flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Perfect KHQR Engine"})
+    return jsonify({"status": "running", "type": "KhmerSMM Static KHQR Mode"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
