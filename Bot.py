@@ -16,7 +16,6 @@ from telebot.types import (
 )
 
 def _ensure_deps():
-    # ធានាថាមាន library គ្រប់គ្រាន់ទាំងលើ Local និង Server
     pkgs = {
         "PIL": "pillow",
         "qrcode": "qrcode",
@@ -45,6 +44,11 @@ _ensure_deps()
 from PIL import Image, ImageDraw, ImageFont
 import qrcode
 import requests
+
+try:
+    from bakong_khqr import KHQR
+except ImportError:
+    KHQR = None
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
@@ -160,7 +164,7 @@ def smm_api_balance():
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
-#  DYNAMIC KHQR GENERATOR (ចាក់សោចំនួនទឹកប្រាក់ស្វ័យប្រវត្តិ)
+#  DYNAMIC KHQR GENERATOR & VERIFIER (NBC STANDARD)
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -173,55 +177,88 @@ def _crc16_khqr(data: str) -> str:
                 crc = (crc << 1) & 0xFFFF
     return f"{crc:04X}"
 
-def _build_dynamic_khqr(account_id: str, amount: float) -> str:
+def _build_dynamic_khqr(account_id: str, amount: float, bill_no: str) -> str:
     def tag(tid: int, val: str) -> str:
         val_str = str(val)
         return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
 
+    # Tag 29: Bakong Merchant Account Information
     sub29 = tag(0, "kh.gov.nbc.bakong") + tag(1, account_id)
     tag29 = tag(29, sub29)
     amt_str = f"{amount:.2f}"
+    
+    # Tag 62: Additional Data (Bill Number)
+    sub62 = tag(1, bill_no[:25])
+    tag62 = tag(62, sub62)
 
     payload = (
         tag(0, "01") +
-        tag(1, "12") +                   # 12 = Dynamic QR
+        tag(1, "12") +                   # 12 = Dynamic QR ចាក់សោទឹកប្រាក់
         tag29 +
-        tag(52, "5999") +
-        tag(53, "840") +                  # 840 = USD
-        tag(54, amt_str) +                # ចំនួនទឹកប្រាក់ចាក់សោ
-        tag(58, "KH") +
+        tag(52, "5999") +                # MCC
+        tag(53, "840") +                 # 840 = USD
+        tag(54, amt_str) +               # Transaction Amount
+        tag(58, "KH") +                  # Country
         tag(59, MERCHANT_NAME) +
         tag(60, MERCHANT_CITY) +
+        tag62 +
         "6304"
     )
     return payload + _crc16_khqr(payload)
 
-def _generate_khqr(uid, amount, note=""):
-    try:
-        from bakong_khqr import KHQR
-        qr = KHQR(BAKONG_TOKEN).create_qr(
-            bank_account=BANK_ACCOUNT,
-            merchant_name=MERCHANT_NAME,
-            merchant_city=MERCHANT_CITY,
-            amount=round(float(amount), 2),
-            currency="USD",
-            bill_number=(note or f"uid{uid}")[:25],
-            static=False,
-        )
-        if qr and qr.startswith("000201"):
-            return qr
-    except Exception as e:
-        logger.warning(f"bakong_khqr fallback: {e}")
-    
-    return _build_dynamic_khqr(BANK_ACCOUNT, round(float(amount), 2))
+def _generate_khqr_and_md5(uid, amount, bill_no):
+    amt = round(float(amount), 2)
+    # ព្យាយាមប្រើ Library ផ្លូវការរបស់ Bakong ជាមុន
+    if KHQR:
+        try:
+            khqr_inst = KHQR(BAKONG_TOKEN)
+            qr_str = khqr_inst.create_qr(
+                bank_account=BANK_ACCOUNT,
+                merchant_name=MERCHANT_NAME,
+                merchant_city=MERCHANT_CITY,
+                amount=amt,
+                currency="USD",
+                bill_number=bill_no,
+                static=False
+            )
+            if qr_str and qr_str.startswith("000201"):
+                md5_str = khqr_inst.generate_md5(qr_str)
+                return qr_str, md5_str
+        except Exception as e:
+            logger.warning(f"Bakong library failed, fallback manual: {e}")
+
+    # បើ Library Error ប្រើ Manual Generator ដែលមាន Bill No ត្រឹមត្រូវ
+    import hashlib
+    qr_str = _build_dynamic_khqr(BANK_ACCOUNT, amt, bill_no)
+    md5_str = hashlib.md5(qr_str.encode("utf-8")).hexdigest()
+    return qr_str, md5_str
 
 def _check_bakong(md5, amount, start_ts):
-    try:
-        from bakong_khqr import KHQR as _BK
-        return _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID"
-    except Exception as e:
-        logger.error(f"Check payment error: {e}")
+    if not md5:
         return False
+    # 1. ឆែកតាម bakong-khqr SDK
+    if KHQR:
+        try:
+            status = KHQR(BAKONG_TOKEN).check_payment(str(md5))
+            if status in ("PAID", "SUCCESS", True):
+                return True
+        except Exception as e:
+            logger.warning(f"SDK check error: {e}")
+
+    # 2. ឆែកផ្ទាល់តាម Bakong Open API Endpoint (ជៀសវាង SDK មានបញ្ហា)
+    try:
+        url = "https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5"
+        headers = {
+            "Authorization": f"Bearer {BAKONG_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        res = requests.post(url, json={"md5": str(md5)}, headers=headers, timeout=10).json()
+        if res.get("responseCode") == 0 and res.get("data", {}).get("status") == "SUCCESS":
+            return True
+    except Exception as e:
+        logger.error(f"Bakong API direct check error: {e}")
+
+    return False
 
 # ═══════════════════════════════════════════════════════════
 #  DRAW STYLED ABA PAY TEMPLATE
@@ -396,13 +433,12 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
 
 def _send_deposit_qr(uid, amount):
     uid_str = str(uid)
-    qr_str = _generate_khqr(uid, amount, f"uid={uid} ${amount}")
+    bill_no = f"TRX{uid}{int(time.time())}"[-15:]
+    qr_str, md5_hash = _generate_khqr_and_md5(uid, amount, bill_no)
+    
     if not qr_str:
         bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
         return
-
-    import hashlib
-    md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
 
     dep_id = f"dep_{uid}_{int(time.time())}"
     store_deps[dep_id] = {
@@ -1924,7 +1960,7 @@ def handle_messages(message):
     bot.send_message(uid, "❓ សូមជ្រើសរើស Menu ខាងក្រោម៖", reply_markup=user_kb(uid))
 
 # ═══════════════════════════════════════════════════════════
-#  FLASK RUN (គាំទ្រទាំង Local និង Cloud Server Port)
+#  FLASK RUN (គាំទ្រទាំង Local និង Cloud Server)
 # ═══════════════════════════════════════════════════════════
 flask_app = Flask(__name__)
 
