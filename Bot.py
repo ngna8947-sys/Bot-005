@@ -837,7 +837,7 @@ def handle_messages(message):
         return
 
     if text == "🎁 រឿង Free":
-        free_movies = [m for m in movies_db.values() if m.get("access"] == "free"]
+        free_movies = [m for m in movies_db.values() if m.get("access") == "free"]
         if not free_movies:
             bot.send_message(uid, "❌ មិនទាន់មានរឿង Free នៅឡើយទេ!"); return
         bot.send_message(uid, "🎁 <b>ជ្រើសរើសរឿង Free (ទស្សនាឥតគិតថ្លៃ)៖</b>", 
