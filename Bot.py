@@ -39,7 +39,6 @@ _ensure_deps()
 from PIL import Image, ImageDraw, ImageFont
 import qrcode
 import requests
-import hashlib
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
@@ -52,6 +51,8 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
 ADMIN_ID = 5915683588
 
+BAKONG_TOKEN = "rbkMVUSQPooaey51jm1cD5ECnzmHyeNX7fBX4Afc16GU8k"
+BANK_ACCOUNT = "samnang_mon@bkrt"
 MERCHANT_NAME = "KhmerSMM"
 MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
@@ -119,63 +120,44 @@ waiting = {}
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
 
-def bal(uid): return float(wallets.get(str(uid), 0.0))
+def bal(uid):
+    return float(wallets.get(str(uid), 0.0))
+
 def add_bal(uid, amt):
     wallets[str(uid)] = round(bal(uid) + amt, 2)
     _save(WALLETS_FILE, wallets)
+
 def ded_bal(uid, amt):
     wallets[str(uid)] = max(0.0, round(bal(uid) - amt, 2))
     _save(WALLETS_FILE, wallets)
+
 def get_disc_price(orig_price, disc_percent):
-    if disc_percent <= 0: return orig_price
+    if disc_percent <= 0:
+        return orig_price
     return max(0.01, round(orig_price * (1 - disc_percent / 100.0), 2))
 
-# ═══════════════════════════════════════════════════════════
-#  DYNAMIC ABA KHQR GENERATOR (ចាក់សោចំនួនទឹកប្រាក់ស្វ័យប្រវត្តិ)
-# ═══════════════════════════════════════════════════════════
-def _crc16_ccitt(data: bytes) -> str:
-    crc = 0xFFFF
-    for byte in data:
-        crc ^= (byte << 8)
-        for _ in range(8):
-            if crc & 0x8000:
-                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
-            else:
-                crc = (crc << 1) & 0xFFFF
-    return f"{crc:04X}"
-
-def _generate_khqr(uid, amount, note=""):
-    """
-    បង្កើតកូដ Dynamic KHQR តាមកុង ABA ពិតប្រាកដរបស់ Mon Samnang
-    ដោយចាក់សោតម្លៃទឹកប្រាក់ (Tag 54) ភ្ញៀវស្កេនទៅឃើញចំនួនលុយស្រាប់ មិនបាច់វាយទេ។
-    """
+def smm_api_order(service_id, link, quantity):
+    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
+    if not url or not key:
+        return {"error": "Admin មិនទាន់កំណត់ API"}
+    payload = {"key": key, "action": "add", "service": service_id, "link": link, "quantity": quantity}
     try:
-        amt_str = f"{float(amount):.2f}"
-        tag54 = f"54{len(amt_str):02d}{amt_str}"
-        
-        # Payload បំប្លែងចេញពីគណនី ABA Bank របស់អ្នក (Point of Initiation = 12 Dynamic)
-        prefix = (
-            "000201"
-            "010212"
-            "30510016abaakhppxxx@abaa01151260903142910660208ABA Bank"
-            "52046513"
-            "5303840"
-            + tag54 +
-            "5802KH"
-            "5911MON SAMNANG"
-            "6012KAMPONG THOM"
-            "624268380010PAYWAY@ABA010719509620209032486076"
-            "6304"
-        )
-        crc = _crc16_ccitt(prefix.encode("utf-8"))
-        return prefix + crc
+        return requests.post(url, data=payload, timeout=25).json()
     except Exception as e:
-        logger.error(f"Generate Dynamic KHQR Error: {e}")
-        return ""
+        return {"error": str(e)}
 
-# ═══════════════════════════════════════════════════════════
-#  DRAW STYLED ABA PAY TEMPLATE
-# ═══════════════════════════════════════════════════════════
+def smm_api_balance():
+    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
+    if not url or not key:
+        return "❌ មិនទាន់កំណត់ API"
+    try:
+        resp = requests.post(url, data={"key": key, "action": "balance"}, timeout=15).json()
+        if "balance" in resp:
+            return f"${float(resp['balance']):.2f} {resp.get('currency', 'USD')}"
+        return f"Error: {resp.get('error', 'Unknown')}"
+    except Exception as e:
+        return f"Error: {e}"
+
 def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     card_w, card_h = 750, 1050
     card = Image.new("RGBA", (card_w, card_h), "#FFFFFF")
@@ -188,7 +170,7 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
             font_aba = ImageFont.truetype(f_bold, 54)
             font_name = ImageFont.truetype(f_bold, 40)
             font_khqr_small = ImageFont.truetype(f_bold, 28)
-            font_amt = ImageFont.truetype(f_bold, 32)
+            font_amt = ImageFont.truetype(f_bold, 30)
             font_dollar = ImageFont.truetype(f_bold, 32)
             break
         except: pass
@@ -205,7 +187,8 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     aba_text, pay_text = "ABA'", " PAY"
     bbox_aba = font_aba.getbbox(aba_text)
     bbox_pay = font_aba.getbbox(pay_text)
-    w_aba, w_pay = bbox_aba[2] - bbox_aba[0], bbox_pay[2] - bbox_pay[0]
+    w_aba = bbox_aba[2] - bbox_aba[0]
+    w_pay = bbox_pay[2] - bbox_pay[0]
     start_x = (card_w - (w_aba + w_pay)) // 2
 
     draw.text((start_x, 100), aba_text, fill="#00465c", font=font_aba)
@@ -235,7 +218,7 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     draw.ellipse([(center_x - 27, center_y - 27), (center_x + 27, center_y + 27)], fill="#000000")
     draw.text((center_x, center_y), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
 
-    draw.text((card_w // 2, box_y2 + 50), "MON SAMNANG", fill="#1a2530", font=font_name, anchor="mm")
+    draw.text((card_w // 2, box_y2 + 50), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
     draw.text((card_w // 2, box_y2 + 105), f"AMOUNT: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
 
     bg_curve = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
@@ -252,16 +235,39 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     buf.seek(0)
     return buf
 
+def _generate_khqr(uid, amount, note=""):
+    try:
+        from bakong_khqr import KHQR
+        return KHQR(BAKONG_TOKEN).create_qr(
+            bank_account=BANK_ACCOUNT,
+            merchant_name="KhmerSMM",
+            merchant_city=MERCHANT_CITY,
+            amount=round(float(amount), 2),
+            currency="USD",
+            bill_number=(note or f"uid{uid}")[:25],
+            static=False,
+        ) or ""
+    except Exception as e:
+        logger.error(f"[_generate_khqr] Error: {e}")
+        return ""
+
+def _check_bakong(md5, amount, start_ts):
+    try:
+        from bakong_khqr import KHQR as _BK
+        return _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID"
+    except Exception:
+        return False
+
 def _build_caption(amount, remaining_sec):
     mins, secs = max(0, remaining_sec // 60), max(0, remaining_sec % 60)
     return (
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"👤 ឈ្មោះគណនី: <b>MON SAMNANG</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b> (បានកំណត់ស្វ័យប្រវត្តក្នុង QR)\n"
+        f"👤 ឈ្មោះគណនី: <b>KhmerSMM</b>\n"
+        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b> (បានកំណត់ស្វ័យប្រវត្តិក្នុង QR)\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ ABA, Bakong, Wing ឬគ្រប់ធនាគារ (មិនបាច់វាយចំនួនលុយទេ)"
+        f"📱 Scan ជាមួយ ABA, Bakong, Wing ឬធនាគារនានា"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -275,6 +281,28 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
         if not dep or dep.get("status") != "pending":
             return
 
+        if _check_bakong(dep.get("md5", ""), amount, start_ts):
+            add_bal(uid, round(amount, 2))
+            dep["status"] = "confirmed"
+            _save(STORE_DEP_FILE, store_deps)
+            try:
+                bot.edit_message_caption(
+                    chat_id=uid,
+                    message_id=msg_id,
+                    caption=f"✅ <b>ការទូទាត់ទទួលបានជោគជ័យ!</b>\n💰 បញ្ចូល: +${amount:.2f}",
+                )
+                bot.send_message(
+                    uid,
+                    f"✅ <b>ដាក់ប្រាក់ជោគជ័យ!</b>\n💰 +${amount:.2f}\n💳 សមតុល្យសរុប: <b>${bal(uid):.2f}</b>",
+                    reply_markup=user_kb(uid),
+                )
+                bot.send_message(
+                    ADMIN_ID, f"💰 <b>Auto KHQR</b>\n👤 <code>{uid_str}</code> | +${amount:.2f}"
+                )
+            except:
+                pass
+            return
+
         if now - last_edit >= 10 and msg_id:
             try:
                 bot.edit_message_caption(
@@ -283,7 +311,8 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
                     caption=_build_caption(amount, remaining),
                 )
                 last_edit = now
-            except: pass
+            except:
+                pass
         time.sleep(POLL_INTERVAL)
 
     dep = store_deps.get(dep_id)
@@ -296,20 +325,29 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
                 message_id=msg_id,
                 caption="❌ <b>QR ផុតកំណត់ហើយ!</b> សូមស្នើសុំម្ដងទៀត។",
             )
-        except: pass
+        except:
+            pass
 
 def _send_deposit_qr(uid, amount):
     uid_str = str(uid)
     qr_str = _generate_khqr(uid, amount, f"uid={uid} ${amount}")
     if not qr_str:
-        bot.send_message(uid, "⚠️ កំហុសក្នុងការបង្កើត QR Code!")
+        bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
         return
+
+    try:
+        from bakong_khqr import KHQR as _BK
+        md5_hash = _BK(BAKONG_TOKEN).generate_md5(qr_str)
+    except Exception:
+        import hashlib
+        md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
 
     dep_id = f"dep_{uid}_{int(time.time())}"
     store_deps[dep_id] = {
         "uid": uid_str,
         "amount": amount,
         "status": "pending",
+        "md5": md5_hash,
         "qr_str": qr_str,
     }
     _save(STORE_DEP_FILE, store_deps)
@@ -323,7 +361,137 @@ def _send_deposit_qr(uid, amount):
     try:
         bot.send_message(
             ADMIN_ID,
-            f"📥 <b>ការស្នើដាក់លុយ!</b>\n"
+            f"📥 <b>ការស្នើដាក់លុយ!</b>\n👤 <code>{uid_str}</code> | 💰 <b>${amount:.2f}</b>",
+            reply_markup=admin_kb_dep,
+        )
+    except:
+        pass
+
+    try:
+        buf = _generate_styled_khqr_image(qr_str, amount, "KhmerSMM")
+        sent = bot.send_photo(uid, buf, caption=_build_caption(amount, DEPOSIT_EXPIRE_SEC))
+    except Exception:
+        sent = bot.send_message(
+            uid, _build_caption(amount, DEPOSIT_EXPIRE_SEC) + f"\n\n<code>{qr_str}</code>"
+        )
+
+    msg_id = sent.message_id if sent else None
+    threading.Thread(
+        target=_watch_deposit_and_countdown,
+        args=(uid, uid_str, dep_id, amount, msg_id, int(time.time())),
+        daemon=True,
+    ).start()
+
+# ═══════════════════════════════════════════════════════════
+#  KEYBOARDS (រចនា Emoji & ពណ៌ស្រស់ស្អាត)
+# ═══════════════════════════════════════════════════════════
+def user_kb(uid=None):
+    s_d = f" 🏷️-{discounts['smm']}%" if discounts.get("smm", 0) > 0 else ""
+    g_d = f" 🏷️-{discounts['game']}%" if discounts.get("game", 0) > 0 else ""
+    a_d = f" 🏷️-{discounts['account']}%" if discounts.get("account", 0) > 0 else ""
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row(f"🚀 សេវាកម្ម SMM{s_d}", f"🎮 បញ្ចូលហ្គេម{g_d}")
+    kb.row(f"🛒 ទិញអាខោន{a_d}", "💳 ដាក់ប្រាក់ (Top Up)")
+    
+    uid_str = str(uid) if uid else ""
+    if uid_str and not users_db.get(uid_str, {}).get("phone"):
+        kb.row("📱 ចុចភ្ជាប់លេខទូរស័ព្ទ", "👜 កាបូបលុយ")
+        kb.row("📦 ប្រវត្តិបញ្ជាទិញ", "💬 ជំនួយ Support")
+    else:
+        kb.row("👜 កាបូបលុយ", "📦 ប្រវត្តិបញ្ជាទិញ", "💬 ជំនួយ Support")
+    return kb
+
+def request_contact_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    kb.row(KeyboardButton("📱 ចុចចែករំលែកលេខទូរស័ព្ទ (Share Contact)", request_contact=True))
+    kb.row("✕ Cancel")
+    return kb
+
+def admin_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row("💸 ដាក់ទឹកប្រាក់ឱ្យភ្ញៀវ", "🏷️ បញ្ចុះតម្លៃ (Discount)")
+    kb.row("➕ បន្ថែមសេវា SMM", "🛠 គ្រប់គ្រងសេវា SMM")
+    kb.row("➕ បន្ថែមហ្គេម/កញ្ចប់", "🎮 គ្រប់គ្រងហ្គេម")
+    kb.row("➕ បង្កើតប្រភេទអាខោន", "📥 បញ្ចូលស្តុកអាខោន")
+    kb.row("🛒 គ្រប់គ្រងអាខោន", "📦 បញ្ជី Order ទាំងអស់")
+    kb.row("💰 កាបូបលុយសរុប", "👥 អ្នកប្រើប្រាស់")
+    kb.row("⚙️ កំណត់ SMM API", "📢 ផ្សព្វផ្សាយ", "🏠 Menu ភ្ញៀវ")
+    return kb
+
+def cancel_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row("✕ Cancel")
+    return kb
+
+def deposit_amt_kb():
+    btns = [
+        [InlineKeyboardButton("💵 $1.00", callback_data="dep:1"), InlineKeyboardButton("💵 $2.00", callback_data="dep:2"), InlineKeyboardButton("💵 $5.00", callback_data="dep:5")],
+        [InlineKeyboardButton("💵 $10.00", callback_data="dep:10"), InlineKeyboardButton("💵 $20.00", callback_data="dep:20"), InlineKeyboardButton("💵 $50.00", callback_data="dep:50")],
+        [InlineKeyboardButton("✏️ បញ្ចូលចំនួនទឹកប្រាក់ផ្ទាល់ខ្លួន", callback_data="dep:custom")]
+    ]
+    return InlineKeyboardMarkup(btns)
+
+def category_smm_kb():
+    cats = sorted(list(set([s.get("cat", "ទូទៅ") for s in services_db.values()])))
+    if not cats:
+        return None
+    d_tag = f" 🔥-{discounts['smm']}%" if discounts.get("smm", 0) > 0 else ""
+    icons = {"Facebook": "🔵", "TikTok": "🎵", "Telegram": "✈️", "YouTube": "🔴", "Instagram": "📸"}
+    btns = []
+    row = []
+    for c in cats:
+        ico = icons.get(c, "📁")
+        count = len([s for s in services_db.values() if s.get("cat") == c])
+        row.append(InlineKeyboardButton(f"{ico} {c} ({count}){d_tag}", callback_data=f"smm_cat:{c}:0"))
+        if len(row) == 2:
+            btns.append(row)
+            row = []
+    if row:
+        btns.append(row)
+    return InlineKeyboardMarkup(btns)
+
+def smm_by_cat_kb(category, page=0, per_page=5):
+    disc = discounts.get("smm", 0)
+    items = [(sid, s) for sid, s in services_db.items() if s.get("cat") == category]
+    total_pages = max(1, (len(items) + per_page - 1) // per_page)
+    start = page * per_page
+    end = start + per_page
+
+    btns = []
+    for sid, s in items[start:end]:
+        orig = s["rate"]
+        cur = get_disc_price(orig, disc)
+        tag = f"🔥${cur:.2f}" if disc > 0 else f"${orig:.2f}"
+        btns.append([InlineKeyboardButton(f"{s['name']} | 🟢 {tag}/1k", callback_data=f"order_smm:{sid}")])
+
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("⬅️ ថយក្រោយ", callback_data=f"smm_cat:{category}:{page-1}"))
+    if page < total_pages - 1:
+        nav.append(InlineKeyboardButton("បន្ទាប់ ➡️", callback_data=f"smm_cat:{category}:{page+1}"))
+    if nav:
+        btns.append(nav)
+
+    btns.append([InlineKeyboardButton("🔙 ត្រឡប់ទៅ Category", callback_data="back_to_smm_cats")])
+    return InlineKeyboardMarkup(btns)
+
+def games_menu_kb():
+    btns = []
+    d_tag = f" 🔥-{discounts['game']}%" if discounts.get("game", 0) > 0 else ""
+    for gkey, g in games_db.items():
+        if g.get("items") and len(g["items"]) > 0:
+            btns.append([InlineKeyboardButton(f"🎮 {g['title']}{d_tag}", callback_data=f"game_cat:{gkey}")])
+    return InlineKeyboardMarkup(btns) if btns else None
+
+def game_items_kb(game_key):
+    disc = discounts.get("game", 0)
+    game = games_db.get(game_key)
+    btns = []
+    if game and game.get("items"):
+        for idx, it in enumerate(game["items"]):
+            orig = it["price"]
+            cur =             f"📥 <b>ការស្នើដាក់លុយ!</b>\n"
             f"👤 <code>{uid_str}</code> | 💰 <b>${amount:.2f}</b>\n"
             f"👉 <i>(ពិនិត្យ App ABA របស់អ្នក ពេលឃើញលុយចូលពិត ចុចប៊ូតុងខាងក្រោម)</i>",
             reply_markup=admin_kb_dep,
