@@ -1,0 +1,6 @@
+pyTelegramBotAPI
+flask
+pillow
+qrcode
+requests
+bakong-khqr
