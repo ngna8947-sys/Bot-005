@@ -154,7 +154,7 @@ def smm_api_balance():
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
-#  STATIC KHQR GENERATOR (គណនីបាគងផ្ទាល់ខ្លួន 100% ស្គាល់គ្រប់ App)
+#  STATIC KHQR GENERATOR
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -177,10 +177,10 @@ def _build_static_khqr(account_id: str) -> str:
 
     payload = (
         tag(0, "01") +
-        tag(1, "11") +                 # 11 = Static QR (គណនីបុគ្គលស្គាល់គ្រប់ធនាគារ)
+        tag(1, "11") +
         tag29 +
         tag(52, "5999") +
-        tag(53, "840") +               # USD
+        tag(53, "840") +
         tag(58, "KH") +
         tag(59, "KhmerSMM") +
         tag(60, "Phnom Penh") +
@@ -321,7 +321,7 @@ def _build_caption(amount, remaining_sec):
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 ឈ្មោះគណនី: <b>KhmerSMM</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់ដែលต้องវាយបញ្ចូល: <b>${amount:.2f}</b>\n"
+        f"💰 ចំនួនទឹកប្រាក់ត្រូវវាយបញ្ចូល: <b>${amount:.2f}</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"📱 Scan ជាមួយ ABA, Bakong, Wing ឬគ្រប់ធនាគារ"
@@ -1240,7 +1240,7 @@ def handle_messages(message):
         step["rate"] = rate
         step["step"] = "admin_smm_minmax"
         waiting[uid] = step
-        bot.send_message(uid, "🔢 សូមបញ្ចូលចំនួន <b>Min និង Max</b> ចន្លោះដកឃ្លា (ឧ: <code>100 10000</b>):", reply_markup=cancel_kb())
+        bot.send_message(uid, "🔢 សូមបញ្ចូលចំនួន <b>Min និង Max</b> ចន្លោះដកឃ្លា (ឧ: <code>100 10000</code>):", reply_markup=cancel_kb())
         return
 
     if uid == ADMIN_ID and isinstance(step, dict) and step.get("step") == "admin_smm_minmax":
@@ -1664,7 +1664,7 @@ def handle_messages(message):
         return
 
     if text == "📦 ប្រវត្តិបញ្ជាទិញ":
-        u_orders = [o for o in orders_db.values() if o.get("uid"] == str(uid)]
+        u_orders = [o for o in orders_db.values() if o.get("uid") == str(uid)]
         if not u_orders:
             bot.send_message(uid, "❌ គ្មានប្រវត្តិបញ្ជាទិញទេ!")
             return
@@ -1916,7 +1916,7 @@ def handle_messages(message):
 
 # ═══════════════════════════════════════════════════════════
 #  FLASK RUN
-# ════════════════════════_═══════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 flask_app = Flask(__name__)
 
 @flask_app.route("/health")
