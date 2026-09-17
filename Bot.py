@@ -16,7 +16,13 @@ from telebot.types import (
 )
 
 def _ensure_deps():
-    pkgs = {"PIL": "pillow", "qrcode": "qrcode", "requests": "requests"}
+    # បន្ថែម bakong-khqr ឱ្យ Auto-install នៅពេល Run លើ GitHub/Cloud
+    pkgs = {
+        "PIL": "pillow",
+        "qrcode": "qrcode",
+        "requests": "requests",
+        "bakong_khqr": "bakong-khqr",
+    }
     for mod, pkg in pkgs.items():
         try:
             __import__(mod)
@@ -176,8 +182,8 @@ def _build_dynamic_khqr(account_id: str, amount: float) -> str:
     tag29 = tag(29, sub29)
     amt_str = f"{amount:.2f}"
 
-    # Tag 01 = "12" គឺ Dynamic QR (ចាក់សោលុយមិនឱ្យភ្ញៀវកែ)
-    # Tag 54 = ចំនួនទឹកប្រាក់ជាក់លាក់
+    # Tag 01 = "12" សម្រាប់ Dynamic KHQR (ចាក់សោលុយ)
+    # Tag 54 = Amount ជាក់លាក់
     payload = (
         tag(0, "01") +
         tag(1, "12") +
@@ -206,8 +212,8 @@ def _generate_khqr(uid, amount, note=""):
         )
         if qr and qr.startswith("000201"):
             return qr
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"bakong_khqr library fallback: {e}")
     
     return _build_dynamic_khqr(BANK_ACCOUNT, round(float(amount), 2))
 
@@ -215,7 +221,8 @@ def _check_bakong(md5, amount, start_ts):
     try:
         from bakong_khqr import KHQR as _BK
         return _BK(BAKONG_TOKEN).check_payment(str(md5)) == "PAID"
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error check_bakong: {e}")
         return False
 
 # ═══════════════════════════════════════════════════════════
@@ -300,7 +307,7 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     draw.ellipse([(qr_cx - 27, qr_cy - 27), (qr_cx + 27, qr_cy + 27)], fill="#000000")
     draw.text((qr_cx, qr_cy), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
 
-    draw.text((card_w // 2, box_y2 + 65), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
+    draw.text((card_w // 2, box_y2 + 65), merchant_name, fill="#1a2530", font=font_name, anchor="mm")
     draw.text((card_w // 2, box_y2 + 125), f"AMOUNT: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
 
     overlay = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
@@ -328,7 +335,7 @@ def _build_caption(amount, remaining_sec):
         f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f} USD</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ ABA, Bakong, Wing ដើម្បីទូទាត់ភ្លាមៗ (ទឹកប្រាក់នឹងលោតស្វ័យប្រវត្តិ)"
+        f"📱 Scan ដើម្បីទូទាត់ភ្លាមៗ (ទឹកប្រាក់នឹងលោតស្វ័យប្រវត្តិតាម App)"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -425,7 +432,7 @@ def _send_deposit_qr(uid, amount):
         pass
 
     try:
-        buf = _generate_styled_khqr_image(qr_str, amount, "KhmerSMM")
+        buf = _generate_styled_khqr_image(qr_str, amount, MERCHANT_NAME)
         sent = bot.send_photo(uid, buf, caption=_build_caption(amount, DEPOSIT_EXPIRE_SEC))
     except Exception:
         sent = bot.send_message(
