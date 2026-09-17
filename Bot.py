@@ -69,7 +69,6 @@ API_CONFIG_FILE = "smm_api_config.json"
 DISCOUNTS_FILE = "smm_discounts.json"
 
 DEFAULT_KHMER_SMM = {
-    # ─── FACEBOOK ───
     "fb_like_kh": {"cat": "Facebook", "name": "👍 FB Likes ខ្មែរ Real", "rate": 1.50, "min": 50, "max": 20000, "api_service_id": 101},
     "fb_like_mix": {"cat": "Facebook", "name": "👍 FB Likes Mix Global", "rate": 0.80, "min": 100, "max": 100000, "api_service_id": 102},
     "fb_react_love": {"cat": "Facebook", "name": "❤️ FB React Love", "rate": 1.20, "min": 50, "max": 20000, "api_service_id": 103},
@@ -80,23 +79,15 @@ DEFAULT_KHMER_SMM = {
     "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
     "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
     "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
-
-    # ─── TIKTOK ───
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
     "tt_follow": {"cat": "TikTok", "name": "👥 TikTok Followers (មិនស្រក)", "rate": 2.80, "min": 100, "max": 20000, "api_service_id": 203},
     "tt_share": {"cat": "TikTok", "name": "🔁 TikTok Shares/Repost", "rate": 0.50, "min": 100, "max": 50000, "api_service_id": 204},
-
-    # ─── TELEGRAM ───
     "tg_member": {"cat": "Telegram", "name": "✈️ Telegram Members", "rate": 1.80, "min": 100, "max": 50000, "api_service_id": 301},
     "tg_post_view": {"cat": "Telegram", "name": "👁 TG Post Views", "rate": 0.10, "min": 100, "max": 100000, "api_service_id": 302},
     "tg_react": {"cat": "Telegram", "name": "🔥 TG Reactions (Fire)", "rate": 0.60, "min": 50, "max": 20000, "api_service_id": 303},
-
-    # ─── YOUTUBE ───
     "yt_view": {"cat": "YouTube", "name": "👁 YouTube Views", "rate": 1.80, "min": 500, "max": 50000, "api_service_id": 401},
     "yt_sub": {"cat": "YouTube", "name": "🔴 YouTube Subscribers", "rate": 18.00, "min": 50, "max": 2000, "api_service_id": 402},
-
-    # ─── INSTAGRAM ───
     "ig_follow": {"cat": "Instagram", "name": "📸 IG Followers (HQ)", "rate": 1.60, "min": 100, "max": 30000, "api_service_id": 501},
     "ig_like": {"cat": "Instagram", "name": "❤️ IG Post Likes", "rate": 0.70, "min": 100, "max": 30000, "api_service_id": 502}
 }
@@ -145,8 +136,30 @@ def get_disc_price(orig_price, disc_percent):
         return orig_price
     return max(0.01, round(orig_price * (1 - disc_percent / 100.0), 2))
 
+def smm_api_order(service_id, link, quantity):
+    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
+    if not url or not key:
+        return {"error": "Admin មិនទាន់កំណត់ API"}
+    payload = {"key": key, "action": "add", "service": service_id, "link": link, "quantity": quantity}
+    try:
+        return requests.post(url, data=payload, timeout=25).json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def smm_api_balance():
+    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
+    if not url or not key:
+        return "❌ មិនទាន់កំណត់ API"
+    try:
+        resp = requests.post(url, data={"key": key, "action": "balance"}, timeout=15).json()
+        if "balance" in resp:
+            return f"${float(resp['balance']):.2f} {resp.get('currency', 'USD')}"
+        return f"Error: {resp.get('error', 'Unknown')}"
+    except Exception as e:
+        return f"Error: {e}"
+
 # ═══════════════════════════════════════════════════════════
-#  OFFICIAL NBC BAKONG EMVCO GENERATOR (CRC16 ត្រឹមត្រូវ ១០០%)
+#  OFFICIAL NBC KHQR STANDARD EMVCo (បុគ្គល & ក្រុមហ៊ុន)
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -159,31 +172,26 @@ def _crc16_khqr(data: str) -> str:
                 crc = (crc << 1) & 0xFFFF
     return f"{crc:04X}"
 
-def _build_official_bakong_khqr(account_id: str, amount: float, bill_no: str) -> str:
+def _build_official_khqr(account_id: str, amount: float = 0.0) -> str:
     def tag(tid: int, val: str) -> str:
         val_str = str(val)
         return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
 
-    # Tag 29: Merchant Account Info ពេញលេញតាមស្ដង់ដារ NBC
-    sub29 = tag(0, "kh.gov.nbc.bakong") + tag(1, account_id)
+    # Tag 29: Bakong Standard Account Structure
+    sub29 = tag(0, account_id)
     tag29 = tag(29, sub29)
 
-    # Tag 62: Additional Data (Bill/Ref No & Store Label)
-    sub62 = tag(1, str(bill_no)[:25]) + tag(7, "KhmerSMM")
-    tag62 = tag(62, sub62)
-
+    # បង្កើត Tag តាមស្ដង់ដារគណនីបាគងបុគ្គល (010211 = Static KHQR)
     payload = (
-        tag(0, "01") +                 # Payload Format
-        tag(1, "12") +                 # 12 = Dynamic QR (មាន Amount)
-        tag29 +                        # Tag 29 NBC Bakong
-        tag(52, "5999") +              # Merchant Category
-        tag(53, "840") +               # 840 = USD Currency
-        tag(54, f"{amount:.2f}") +     # Amount
-        tag(58, "KH") +                # Country
-        tag(59, "KhmerSMM") +          # Merchant Name
-        tag(60, "Phnom Penh") +        # City
-        tag62 +                        # Additional Data
-        "6304"                         # CRC Marker
+        tag(0, "01") +             # Payload Format
+        tag(1, "11") +             # 11 = Static QR (ស្គាល់គ្រប់ App ធនាគារទាំងអស់)
+        tag29 +                    # Account: samnang_mon@bkrt
+        tag(52, "5999") +          # Merchant Category
+        tag(53, "840") +           # Currency USD
+        tag(58, "KH") +            # Country Code
+        tag(59, "KhmerSMM") +      # Name
+        tag(60, "Phnom Penh") +    # City
+        "6304"
     )
     return payload + _crc16_khqr(payload)
 
@@ -204,7 +212,8 @@ def _generate_khqr(uid, amount, note=""):
     except Exception:
         pass
     
-    return _build_official_bakong_khqr(BANK_ACCOUNT, round(float(amount), 2), (note or f"uid{uid}")[:25])
+    # ប្រើក្បួនផ្លូវការធនាគារជាតិ មិនខុសទម្រង់ឡើយ
+    return _build_official_khqr(BANK_ACCOUNT, round(float(amount), 2))
 
 def _check_bakong(md5, amount, start_ts):
     try:
@@ -214,7 +223,7 @@ def _check_bakong(md5, amount, start_ts):
         return False
 
 # ═══════════════════════════════════════════════════════════
-#  DRAW STYLED BAKONG PAY TEMPLATE (ពណ៌ក្រហម Bakong សុទ្ធ)
+#  DRAW STYLED BAKONG PAY TEMPLATE (ពណ៌ក្រហម Bakong)
 # ═══════════════════════════════════════════════════════════
 def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     card_w, card_h = 750, 1050
@@ -294,10 +303,10 @@ def _build_caption(amount, remaining_sec):
         f"💳 <b>ដាក់ប្រាក់ចូលគណនី (Top Up)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 ឈ្មោះគណនី: <b>KhmerSMM</b>\n"
-        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b> (បានកំណត់ស្វ័យប្រវត្តិក្នុង QR)\n"
+        f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f}</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ Bakong, ABA, Wing ឬធនាគារនានា"
+        f"📱 Scan ជាមួយ Bakong, ABA, Wing ឬគ្រប់ធនាគារ"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -1894,7 +1903,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Standard NBC KHQR"})
+    return jsonify({"status": "running", "type": "KhmerSMM Valid KHQR"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
