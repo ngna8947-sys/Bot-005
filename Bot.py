@@ -81,7 +81,7 @@ DEFAULT_KHMER_SMM = {
     "fb_page_fol": {"cat": "Facebook", "name": "👥 FB Page Followers", "rate": 2.20, "min": 100, "max": 50000, "api_service_id": 106},
     "fb_prof_fol": {"cat": "Facebook", "name": "👤 FB Profile Followers", "rate": 1.90, "min": 100, "max": 50000, "api_service_id": 107},
     "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
-    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
+    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 20000, "api_service_id": 110},
     "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
@@ -159,7 +159,7 @@ def smm_api_balance():
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
-#  STANDARD EMVCo KHQR GENERATOR
+#  STANDARD EMVCo KHQR ENCODER
 # ═══════════════════════════════════════════════════════════
 def _crc16_khqr(data: str) -> str:
     crc = 0xFFFF
@@ -177,30 +177,29 @@ def _build_dynamic_khqr_manual(account_id: str, amount: float) -> str:
         val_str = str(val)
         return f"{tid:02d}{len(val_str.encode('utf-8')):02d}{val_str}"
 
-    # Tag 29: Bakong Merchant Account Information
+    # Tag 29: Merchant Account Information
     sub29 = tag(0, "kh.gov.nbc.bakong") + tag(1, account_id)
     tag29 = tag(29, sub29)
     amt_str = f"{amount:.2f}"
 
-    # បន្ថែម Tag 00 ដើមគេ (000201) ដែលជាស្ដង់ដារដាច់ខាតរបស់ EMVCo
+    # រៀបចំលំដាប់លំដោយតាមក្បួន EMVCo / NBC KHQR ដោយគ្មានការស្ទួន
     payload = (
-        tag(0, "01") +                   # 000201 នឹងត្រូវផ្គុំនៅខាងក្រោម
-        tag(1, "12") +                   # 12 = Dynamic QR (ចាក់សោលុយ)
-        tag29 +
-        tag(52, "5999") +
-        tag(53, "840") +                  # 840 = USD
-        tag(54, amt_str) +                # ចំនួនទឹកប្រាក់ចាក់សោ
-        tag(58, "KH") +
-        tag(59, MERCHANT_NAME) +
-        tag(60, MERCHANT_CITY) +
-        "6304"
+        tag(0, "01") +                   # Tag 00 = "01" (Payload Format Indicator)
+        tag(1, "12") +                   # Tag 01 = "12" (Dynamic QR)
+        tag29 +                          # Tag 29 = Bakong Account
+        tag(52, "5999") +                # Tag 52 = MCC
+        tag(53, "840") +                 # Tag 53 = Currency (840 = USD)
+        tag(54, amt_str) +               # Tag 54 = Amount (ចាក់សោលុយ)
+        tag(58, "KH") +                  # Tag 58 = Country
+        tag(59, MERCHANT_NAME) +         # Tag 59 = Merchant Name
+        tag(60, MERCHANT_CITY) +         # Tag 60 = City
+        "6304"                           # Tag 63 = Checksum Header
     )
-    full_payload = "000201" + payload
-    return full_payload + _crc16_khqr(full_payload)
+    return payload + _crc16_khqr(payload)
 
 def _generate_khqr(uid, amount, note=""):
     amt = round(float(amount), 2)
-    # ១. សាកល្បងបង្កើតតាម SDK ជាមុន (បើមាន)
+    # ១. ដំណើរការតាម Library ផ្លូវការ
     try:
         from bakong_khqr import KHQR
         qr = KHQR(BAKONG_TOKEN).create_qr(
@@ -215,9 +214,9 @@ def _generate_khqr(uid, amount, note=""):
         if qr and qr.startswith("000201"):
             return qr
     except Exception as e:
-        logger.warning(f"SDK failed or missing, use manual engine: {e}")
+        logger.warning(f"Library error, using built-in manual encoder: {e}")
 
-    # ២. បង្កើតតាម Manual ដែលមាន Tag 000201 ត្រឹមត្រូវ ១០០%
+    # ២. ដំណើរការតាម Manual Encoder ត្រឹមត្រូវ 100%
     return _build_dynamic_khqr_manual(BANK_ACCOUNT, amt)
 
 def _check_bakong(md5, amount, start_ts):
@@ -343,7 +342,7 @@ def _build_caption(amount, remaining_sec):
         f"💰 ចំនួនទឹកប្រាក់: <b>${amount:.2f} USD</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ ABA, Bakong, Wing ដើម្បីទូទាត់ភ្លាមៗ"
+        f"📱 Scan ដើម្បីទូទាត់ភ្លាមៗ (ទឹកប្រាក់នឹងលោតស្វ័យប្រវត្តិតាម App)"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
