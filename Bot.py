@@ -226,7 +226,6 @@ def smm_api_balance():
 def _generate_khqr(uid, amount, note=""):
     try:
         bk = KHQR(BAKONG_TOKEN)
-        # បង្កើត Dynamic QR តាមរយៈ Bakong SDK ផ្លូវការដែលមាន Amount ស្រាប់
         qr = bk.create_qr(
             bank_account=BANK_ACCOUNT,
             merchant_name=MERCHANT_NAME,
@@ -372,7 +371,7 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
         now = time.time()
         remaining = int(deadline - now)
         dep = store_deps.get(dep_id)
-        if not dep or dep.get("status"] != "pending":
+        if not dep or dep.get("status") != "pending":
             return
 
         if _check_bakong(dep.get("md5", ""), amount, start_ts):
@@ -1044,7 +1043,7 @@ def handle_callbacks(call):
             return
         target_uid, amt = int(dep["uid"]), float(dep["amount"])
         if act == "approve":
-            if dep.get("status"] == "confirmed":
+            if dep.get("status") == "confirmed":
                 bot.answer_callback_query(call.id, "⚠️ ដាក់រួចហើយ!")
                 return
             add_bal(target_uid, amt)
@@ -1962,7 +1961,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Static QR Mode Final"})
+    return jsonify({"status": "running", "type": "KhmerSMM Static QR Fixed"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
