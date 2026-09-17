@@ -317,7 +317,8 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     draw.text((qr_cx, qr_cy), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
 
     draw.text((card_w // 2, box_y2 + 65), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
-    draw.text((card_w // 2, box_y2 + 125), f"AMOUNT: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
+    # កែតម្រូវបង្ហាញកាដូទឹកប្រាក់ដែលត្រូវវាយបញ្ចូលដោយដៃ
+    draw.text((card_w // 2, box_y2 + 125), f"TOP UP: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
 
     overlay = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     ov_draw = ImageDraw.Draw(overlay)
@@ -355,7 +356,7 @@ def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts)
         now = time.time()
         remaining = int(deadline - now)
         dep = store_deps.get(dep_id)
-        if not dep or dep.get("status") != "pending":
+        if not dep or dep.get("status"] != "pending":
             return
 
         if _check_bakong(dep.get("md5", ""), amount, start_ts):
@@ -412,12 +413,8 @@ def _send_deposit_qr(uid, amount):
         bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
         return
 
-    try:
-        bk = KHQR(BAKONG_TOKEN)
-        md5_hash = bk.generate_md5(qr_str)
-    except Exception:
-        import hashlib
-        md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
+    import hashlib
+    md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
 
     dep_id = f"dep_{uid}_{int(time.time())}"
     store_deps[dep_id] = {
@@ -1945,7 +1942,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Static KHQR Mode Final"})
+    return jsonify({"status": "running", "type": "KhmerSMM Static QR Mode Final"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
