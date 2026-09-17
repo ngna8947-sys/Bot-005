@@ -52,10 +52,8 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
 ADMIN_ID = 5915683588
 
-BAKONG_TOKEN = "rbkMVUSQPooaey51jm1cD5ECnzmHyeNX7fBX4Afc16GU8k"
-
-# ⚠️ ដាក់ Bakong ID ឬ ABA ID ពិតប្រាកដរបស់អ្នកនៅទីនេះ (ឧ. "samnang_mon@aba" ឬ "012345678@aba")
-BANK_ACCOUNT = "samnang_mon@aba"
+# ⚠️ សូមបិទភ្ជាប់ (Paste) កូដអក្សរ QR ដែលអ្នក Copy ចេញពី App Bakong នៅទីនេះ៖
+BAKONG_STATIC_QR = "00020101021129370016bakongxxx..."
 
 MERCHANT_NAME = "KhmerSMM"
 MERCHANT_CITY = "Phnom Penh"
@@ -81,7 +79,7 @@ DEFAULT_KHMER_SMM = {
     "fb_page_fol": {"cat": "Facebook", "name": "👥 FB Page Followers", "rate": 2.20, "min": 100, "max": 50000, "api_service_id": 106},
     "fb_prof_fol": {"cat": "Facebook", "name": "👤 FB Profile Followers", "rate": 1.90, "min": 100, "max": 50000, "api_service_id": 107},
     "fb_views_video": {"cat": "Facebook", "name": "👁 FB Video Views", "rate": 0.25, "min": 500, "max": 100000, "api_service_id": 108},
-    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 200000, "api_service_id": 110},
+    "fb_reel_view": {"cat": "Facebook", "name": "🎬 FB Reels Views", "rate": 0.30, "min": 500, "max": 20000, "api_service_id": 110},
     "fb_share": {"cat": "Facebook", "name": "🔄 FB Post Shares", "rate": 2.50, "min": 50, "max": 5000, "api_service_id": 111},
     "tt_view": {"cat": "TikTok", "name": "👁 TikTok Views (លឿន)", "rate": 0.15, "min": 1000, "max": 1000000, "api_service_id": 201},
     "tt_like": {"cat": "TikTok", "name": "❤️ TikTok Likes (HQ)", "rate": 1.20, "min": 100, "max": 50000, "api_service_id": 202},
@@ -136,50 +134,15 @@ def get_disc_price(orig_price, disc_percent):
     return max(0.01, round(orig_price * (1 - disc_percent / 100.0), 2))
 
 # ═══════════════════════════════════════════════════════════
-#  ACCURATE BAKONG KHQR FORMAT (EMVCo COMPLIANT)
+#  GENERATE REAL BAKONG QR
 # ═══════════════════════════════════════════════════════════
-def _crc16(data: bytes) -> str:
-    crc = 0xFFFF
-    for byte in data:
-        crc ^= (byte << 8)
-        for _ in range(8):
-            if crc & 0x8000:
-                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
-            else:
-                crc = (crc << 1) & 0xFFFF
-    return f"{crc:04X}"
-
-def _format_tlv(tag: str, val: str) -> str:
-    return f"{tag}{len(val.encode('utf-8')):02d}{val}"
-
 def _generate_khqr(uid, amount, note=""):
-    try:
-        # Standard Bakong Individual KHQR Payload
-        acc_str = str(BANK_ACCOUNT).strip()
-        f29 = _format_tlv("29", _format_tlv("00", "bakong") + _format_tlv("01", acc_str))
-        amt_str = f"{float(amount):.2f}"
-        
-        raw = (
-            _format_tlv("00", "01") +
-            _format_tlv("01", "12") +
-            f29 +
-            _format_tlv("52", "0000") +
-            _format_tlv("53", "840") +
-            _format_tlv("54", amt_str) +
-            _format_tlv("58", "KH") +
-            _format_tlv("59", MERCHANT_NAME) +
-            _format_tlv("60", MERCHANT_CITY) +
-            _format_tlv("62", _format_tlv("01", f"uid{uid}")[:25]) +
-            "6304"
-        )
-        crc = _crc16(raw.encode("utf-8"))
-        return raw + crc
-    except Exception as e:
-        logger.error(f"KHQR Gen Error: {e}")
-        return ""
+    if BAKONG_STATIC_QR and len(BAKONG_STATIC_QR) > 20:
+        return BAKONG_STATIC_QR
+    return ""
 
 # ═══════════════════════════════════════════════════════════
-#  DRAW STYLED ABA PAY TEMPLATE (KhmerSMM)
+#  DRAW STYLED ABA PAY TEMPLATE (ផ្ទុកកូដ Bakong ពិត)
 # ═══════════════════════════════════════════════════════════
 def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     card_w, card_h = 750, 1050
@@ -265,7 +228,7 @@ def _build_caption(amount, remaining_sec):
         f"💰 ចំនួន: <b>${amount:.2f}</b>\n"
         f"⏱ ផុតកំណត់ក្នុងរយ: <b>{mins:02d}:{secs:02d} នាទី</b> ⏳\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"📱 Scan ជាមួយ Bakong / ABA / Wing ឬធនាគារនានា"
+        f"📱 Scan ជាមួយ Bakong / ABA / Wing ឬគ្រប់ធនាគារ"
     )
 
 def _watch_deposit_and_countdown(uid, uid_str, dep_id, amount, msg_id, start_ts):
@@ -306,16 +269,14 @@ def _send_deposit_qr(uid, amount):
     uid_str = str(uid)
     qr_str = _generate_khqr(uid, amount, f"uid={uid} ${amount}")
     if not qr_str:
-        bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
+        bot.send_message(uid, "⚠️ Admin មិនទាន់កំណត់កូដ QR ធនាគារនៅឡើយទេ!")
         return
 
-    md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
     dep_id = f"dep_{uid}_{int(time.time())}"
     store_deps[dep_id] = {
         "uid": uid_str,
         "amount": amount,
         "status": "pending",
-        "md5": md5_hash,
         "qr_str": qr_str,
     }
     _save(STORE_DEP_FILE, store_deps)
@@ -329,7 +290,9 @@ def _send_deposit_qr(uid, amount):
     try:
         bot.send_message(
             ADMIN_ID,
-            f"📥 <b>ការស្នើដាក់លុយ!</b>\n👤 <code>{uid_str}</code> | 💰 <b>${amount:.2f}</b>\n(សូមពិនិត្យ App ធនាគារ រួចចុច Approve)",
+            f"📥 <b>ការស្នើដាក់លុយ!</b>\n"
+            f"👤 <code>{uid_str}</code> | 💰 <b>${amount:.2f}</b>\n"
+            f"👉 <i>(ពិនិត្យ App Bakong របស់អ្នក ពេលឃើញលុយចូលពិត ចុចប៊ូតុងខាងក្រោម)</i>",
             reply_markup=admin_kb_dep,
         )
     except: pass
@@ -470,6 +433,31 @@ def accounts_menu_kb():
             tag = f"🔥${cur:.2f}" if disc > 0 else f"${orig:.2f}"
             btns.append([InlineKeyboardButton(f"📦 {a['title']} | {tag} [សល់: {stock}]", callback_data=f"view_acc:{aid}")])
     return InlineKeyboardMarkup(btns) if btns else None
+
+# ═══════════════════════════════════════════════════════════
+#  SMM PANEL API INTEGRATION
+# ═══════════════════════════════════════════════════════════
+def smm_api_order(service_id, link, quantity):
+    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
+    if not url or not key:
+        return {"error": "Admin មិនទាន់កំណត់ API"}
+    payload = {"key": key, "action": "add", "service": service_id, "link": link, "quantity": quantity}
+    try:
+        return requests.post(url, data=payload, timeout=25).json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def smm_api_balance():
+    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
+    if not url or not key:
+        return "❌ មិនទាន់កំណត់ API"
+    try:
+        resp = requests.post(url, data={"key": key, "action": "balance"}, timeout=15).json()
+        if "balance" in resp:
+            return f"${float(resp['balance']):.2f} {resp.get('currency', 'USD')}"
+        return f"Error: {resp.get('error', 'Unknown')}"
+    except Exception as e:
+        return f"Error: {e}"
 
 # ═══════════════════════════════════════════════════════════
 #  START
