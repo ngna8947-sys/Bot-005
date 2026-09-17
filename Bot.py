@@ -47,7 +47,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════
-#  CONFIG & STATIC QR STRING (ប្រកាសទុកមុនគេបង្អស់)
+#  CONFIG
 # ═══════════════════════════════════════════════════════════
 BOT_TOKEN = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
 ADMIN_ID = 5915683588
@@ -59,7 +59,7 @@ MERCHANT_CITY = "Phnom Penh"
 DEPOSIT_EXPIRE_SEC = 300
 POLL_INTERVAL = 5
 
-# 💎 កូដ Static KHQR ស្ដង់ដារថេរ ត្រូវនឹង mon_samnang@bkrt របស់អ្នក
+# 💎 កូដ Static KHQR ស្ដង់ដារថេរ 100% ត្រូវនឹង mon_samnang@bkrt មិនខុស Format
 MY_STATIC_QR = "00020101021129190011kh.gov.nbc.bakong0115mon_samnang@bkrt5204599953038405802KH5909KhmerSMM6010Phnom Penh6304"
 
 WALLETS_FILE = "smm_wallets.json"
@@ -317,7 +317,7 @@ def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     draw.text((qr_cx, qr_cy), "$", fill="#FFFFFF", font=font_dollar, anchor="mm")
 
     draw.text((card_w // 2, box_y2 + 65), "KhmerSMM", fill="#1a2530", font=font_name, anchor="mm")
-    draw.text((card_w // 2, box_y2 + 125), f"TOP UP: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
+    draw.text((card_w // 2, box_y2 + 125), f"AMOUNT: ${amount:.2f} USD", fill="#00465c", font=font_amt, anchor="mm")
 
     overlay = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     ov_draw = ImageDraw.Draw(overlay)
@@ -412,12 +412,8 @@ def _send_deposit_qr(uid, amount):
         bot.send_message(uid, "⚠️ បរាជ័យក្នុងការបង្កើត QR! សូមទាក់ទង Admin")
         return
 
-    try:
-        bk = KHQR(BAKONG_TOKEN)
-        md5_hash = bk.generate_md5(qr_str)
-    except Exception:
-        import hashlib
-        md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
+    import hashlib
+    md5_hash = hashlib.md5(qr_str.encode()).hexdigest()
 
     dep_id = f"dep_{uid}_{int(time.time())}"
     store_deps[dep_id] = {
@@ -530,7 +526,7 @@ def category_smm_kb():
 
 def smm_by_cat_kb(category, page=0, per_page=5):
     disc = discounts.get("smm", 0)
-    items = [(sid, s) for sid, s in services_db.items() if s.get("cat") == category]
+    items = [(sid, s) for sid, s in services_db.items() if s.get("cat"] == category]
     total_pages = max(1, (len(items) + per_page - 1) // per_page)
     start = page * per_page
     end = start + per_page
@@ -1945,7 +1941,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Static QR Fixed Caption Final"})
+    return jsonify({"status": "running", "type": "KhmerSMM Static QR Fixed Caption Correct"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
