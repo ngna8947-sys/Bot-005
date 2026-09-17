@@ -136,9 +136,28 @@ def get_disc_price(orig_price, disc_percent):
         return orig_price
     return max(0.01, round(orig_price * (1 - disc_percent / 100.0), 2))
 
-# ═══════════════════════════════════════════════════════════
-#  FALLBACK KHQR BUILDER (CRC16 EMVCo)
-# ═══════════════════════════════════════════════════════════
+def smm_api_order(service_id, link, quantity):
+    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
+    if not url or not key:
+        return {"error": "Admin មិនទាន់កំណត់ API"}
+    payload = {"key": key, "action": "add", "service": service_id, "link": link, "quantity": quantity}
+    try:
+        return requests.post(url, data=payload, timeout=25).json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def smm_api_balance():
+    url, key = api_cfg.get("api_url"), api_cfg.get("api_key")
+    if not url or not key:
+        return "❌ មិនទាន់កំណត់ API"
+    try:
+        resp = requests.post(url, data={"key": key, "action": "balance"}, timeout=15).json()
+        if "balance" in resp:
+            return f"${float(resp['balance']):.2f} {resp.get('currency', 'USD')}"
+        return f"Error: {resp.get('error', 'Unknown')}"
+    except Exception as e:
+        return f"Error: {e}"
+
 def _crc16_ccitt(data: str) -> str:
     crc = 0xFFFF
     for ch in data:
@@ -184,9 +203,8 @@ def _generate_khqr(uid, amount, note=""):
         )
         if qr:
             return qr
-    except Exception as e:
-        logger.warning(f"Bakong SDK failed: {e}. Switching to EMVCo Generator.")
-
+    except Exception:
+        pass
     return _build_raw_bakong_qr(BANK_ACCOUNT, round(float(amount), 2), (note or f"uid{uid}")[:25])
 
 def _check_bakong(md5, amount, start_ts):
@@ -196,14 +214,10 @@ def _check_bakong(md5, amount, start_ts):
     except Exception:
         return False
 
-# ═══════════════════════════════════════════════════════════
-#  DRAW STYLED BAKONG KHQR
-# ═══════════════════════════════════════════════════════════
 def _generate_styled_khqr_image(qr_str, amount, merchant_name="KhmerSMM"):
     card_w, card_h = 750, 1050
     card = Image.new("RGBA", (card_w, card_h), "#FFFFFF")
     draw = ImageDraw.Draw(card)
-
     draw.rectangle([(0, 0), (card_w, 28)], fill="#c8102e")
 
     font_header, font_slogan, font_name, font_khqr_small, font_amt, font_dollar = None, None, None, None, None, None
@@ -1869,7 +1883,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/health")
 def health():
-    return jsonify({"status": "running", "type": "KhmerSMM Bakong Pay Mode"})
+    return jsonify({"status": "running", "type": "KhmerSMM Full Feature Bot"})
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=5055, debug=False, use_reloader=False)
@@ -1877,8 +1891,13 @@ def run_flask():
 if __name__ == "__main__":
     logger.info("🚀 Full Bot is running...")
     threading.Thread(target=run_flask, daemon=True).start()
-    try:
-        bot.remove_webhook()
-    except Exception:
-        pass
-    bot.infinity_polling(timeout=20, long_polling_timeout=15, skip_pending=True)
+    
+    # Auto-recovery Loop ការពារ Error 409 Conflict
+    while True:
+        try:
+            bot.remove_webhook()
+            time.sleep(1)
+            bot.infinity_polling(timeout=20, long_polling_timeout=15, skip_pending=True)
+        except Exception as e:
+            logger.error(f"Polling error: {e}. Retrying in 5 seconds...")
+            time.sleep(5)
