@@ -340,7 +340,7 @@ def confirm_promo(code, uid):
     _save(PROMO_FILE, promos)
 
 # ═══════════════════════════════════════════════════════════
-#  KEYBOARDS (Added Game Top Up button on main menu)
+#  KEYBOARDS
 # ═══════════════════════════════════════════════════════════
 def main_kb(uid=None):
     lang = get_lang(uid) if uid else "kh"
@@ -468,7 +468,7 @@ def smm_qty_kb(slug, s):
 def products_kb():
     btns = []
     for p in products:
-        if p["id"] == "freefire": continue  # Exclude from normal shop if shown separately
+        if p["id"] == "freefire": continue
         total = sum(
             len(stock.get(_stock_key(p["id"], i), []))
             for i in range(len(p.get("plans", [])))
@@ -610,7 +610,7 @@ def _smm_service_list_text():
     return "\n".join(lines)
 
 # ═══════════════════════════════════════════════════════════
-#  BAKONG KHQR
+#  BAKONG KHQR & ABA PAYWAY
 # ═══════════════════════════════════════════════════════════
 def _generate_khqr(uid, amount, note=""):
     try:
@@ -717,7 +717,7 @@ def _send_deposit_qr(uid, amount, promo_code=None, label="💳 ដាក់ប�
         cap += f"\n🎟️ ប្រាក់ Bonus Promo: <b>+${bonus:.2f}</b>"
     cap += (f"\n⏱ ផុតកំណត់: <b>{DEPOSIT_EXPIRE_SEC//60} នាទី</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"📱 Scan ជាមួយ Bakong / ABA / Wing")
+            f"📱 Scan ជាមួយ Bakong / ABA / Wing ឬចុចប៊ូតុងខាងក្រោម")
     
     if promo_applied and (bonus > 0 or discount > 0):
         confirm_promo(promo_applied, uid)
@@ -771,7 +771,7 @@ def _send_deposit_qr(uid, amount, promo_code=None, label="💳 ដាក់ប�
         except Exception:
             pass
 
-    # បន្ថែម URL ABA ត្រង់នេះ
+    # ប៊ូតុងតភ្ជាប់ ABA PayWay URL
     aba_payment_url = "https://link.payway.com.kh/ABAPAYuN526009h"
     deposit_markup = InlineKeyboardMarkup([
         [InlineKeyboardButton("💳 ចុចទីនេះដើម្បីបង់ប្រាក់តាម ABA", url=aba_payment_url)]
@@ -2615,7 +2615,7 @@ def handle(message):
     if text in ("👜 កាបូបលុយ", "👜 Wallet"):
         b = bal(uid)
         my_deps = [(k, v) for k, v in store_deps.items()
-                   if v.get("uid"] == uid_str]
+                   if v.get("uid") == uid_str]
         confirmed = sum(float(v.get("amount",0)) for _, v in my_deps if v.get("status")=="confirmed")
         pending   = sum(float(v.get("amount",0)) for _, v in my_deps if v.get("status")=="pending")
         bot.send_message(uid,
@@ -2776,7 +2776,6 @@ def print_banner():
 
 # ═══════════════════════════════════════════════════════════
 #  MAIN
-# ════════════════អ្នកប្រើប្រាស់
 # ═══════════════════════════════════════════════════════════
 if __name__ == "__main__":
     print_banner()
