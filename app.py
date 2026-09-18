@@ -716,6 +716,14 @@ def handle(message):
 
 if __name__ == "__main__":
     logger.info(f"{CLR_GREEN}🚀 Kairozen All-in-One Bot v4 กำลังเริ่ม...{CLR_RESET}")
+    
+    # បង្ខំលុប Webhook ចោលដើម្បីការពារកុំឱ្យទចគ្នានឹង Polling និងដោះស្រាយបញ្ហា Conflict
+    try:
+        bot.remove_webhook()
+        time.sleep(1)
+    except Exception as e:
+        pass
+
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     
