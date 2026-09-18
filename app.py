@@ -162,7 +162,6 @@ def _make_session():
     return s
 http = _make_session()
 
-# ─── FLASK SERVER FOR RENDER KEEP-ALIVE ───
 app = Flask(__name__)
 
 @app.route('/')
@@ -173,7 +172,6 @@ def run_flask():
     port = int(os.environ.get("PORT", 5055))
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
-# ─── LANGUAGE STRINGS ───
 STRINGS = {
     "kh": {
         "welcome": (
@@ -262,7 +260,6 @@ STRINGS = {
 }
 
 def get_lang(uid): return user_lang.get(str(uid), "kh")
-
 def t(uid, key, *args):
     lang = get_lang(uid)
     s = STRINGS.get(lang, STRINGS["kh"]).get(key) or STRINGS["kh"].get(key, key)
@@ -311,7 +308,6 @@ def confirm_promo(code, uid):
     p["user_used"] = uu
     _save(PROMO_FILE, promos)
 
-# ─── KEYBOARDS ───
 def main_kb(uid=None):
     lang = get_lang(uid) if uid else "kh"
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -423,7 +419,6 @@ def plans_kb(prod_id):
     btns.append([InlineKeyboardButton("🔙 Back", callback_data="back:shop")])
     return InlineKeyboardMarkup(btns)
 
-# ─── BAKONG KHQR ───
 def _generate_khqr(uid, amount, note=""):
     try:
         from bakong_khqr import KHQR
@@ -528,7 +523,6 @@ def _send_deposit_qr(uid, amount, promo_code=None, label="💳 ដាក់ប�
         
     threading.Thread(target=_watch_deposit, args=(uid, uid_str, dep_id, final_amount, start_ts), daemon=True).start()
 
-# ─── BOT HANDLERS & ROUTING ───
 @bot.message_handler(commands=["start"])
 def cmd_start(message):
     uid = message.chat.id
@@ -631,7 +625,6 @@ def cb_back(call):
     elif dest == "smmcats":
         bot.send_message(uid, "📊 SMM Services", parse_mode="HTML", reply_markup=smm_cat_kb())
 
-# ─── TEXT MESSAGE HANDLER ───
 @bot.message_handler(func=lambda m: True)
 def handle(message):
     uid     = message.chat.id
