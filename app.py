@@ -173,7 +173,7 @@ def run_flask():
     port = int(os.environ.get("PORT", 5055))
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
-# ─── LANGUAGE ───
+# ─── LANGUAGE STRINGS ───
 STRINGS = {
     "kh": {
         "welcome": (
@@ -395,7 +395,6 @@ def smm_svc_kb(cat):
     return InlineKeyboardMarkup(btns)
 
 def smm_qty_kb(slug, s):
-    sr   = 1.0 # default rate factor
     mn   = s.get("min", 100)
     mx   = s.get("max", 100000)
     qtys = [100, 500, 1000, 5000, 10000]
@@ -424,13 +423,13 @@ def plans_kb(prod_id):
     btns.append([InlineKeyboardButton("🔙 Back", callback_data="back:shop")])
     return InlineKeyboardMarkup(btns)
 
-# ─── BAKONG KHQR (Fixed parameter: account_id) ───
+# ─── BAKONG KHQR ───
 def _generate_khqr(uid, amount, note=""):
     try:
         from bakong_khqr import KHQR
         k = KHQR(BAKONG_TOKEN)
         qr_str = k.create_qr(
-            account_id    = BANK_ACCOUNT,  # ធ្វើការកែសម្រួលត្រឹមត្រូវពី bank_account មកเป็น account_id ស្របតាមបណ្ណាល័យជំនាន់ថ្មី
+            account_id    = BANK_ACCOUNT,
             merchant_name = MERCHANT_NAME,
             merchant_city = MERCHANT_CITY,
             amount        = round(float(amount), 2),
@@ -529,7 +528,7 @@ def _send_deposit_qr(uid, amount, promo_code=None, label="💳 ដាក់ប�
         
     threading.Thread(target=_watch_deposit, args=(uid, uid_str, dep_id, final_amount, start_ts), daemon=True).start()
 
-# ─── BOT HANDLERS ───
+# ─── BOT HANDLERS & ROUTING ───
 @bot.message_handler(commands=["start"])
 def cmd_start(message):
     uid = message.chat.id
@@ -564,9 +563,79 @@ def cb_dep(call):
         return
     _send_deposit_qr(uid, float(val))
 
+@bot.callback_query_handler(func=lambda c: c.data.startswith("prod:"))
+def cb_prod(call):
+    uid = call.message.chat.id
+    pid = call.data[5:]
+    bot.answer_callback_query(call.id)
+    p = next((x for x in products if x["id"] == pid), None)
+    if not p: return
+    bot.send_message(uid, f"📦 <b>{p['name']}</b>\nជ្រើសរើស Plan:", parse_mode="HTML", reply_markup=plans_kb(pid))
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("plan:"))
+def cb_plan(call):
+    uid = call.message.chat.id
+    bot.answer_callback_query(call.id)
+    _, pid, idx_str = call.data.split(":")
+    idx = int(idx_str)
+    p = next((x for x in products if x["id"] == pid), None)
+    if not p: return
+    plan = p["plans"][idx]
+    price = _calc_discounted_price(float(plan["price"]))
+    
+    if pid == "freefire":
+        waiting[uid] = {"step": "order_freefire_uid", "prod_id": pid, "plan_idx": idx, "price": price}
+        bot.send_message(uid, f"💎 <b>{plan['label']}</b>\n🎮 សូមបញ្ចូល Player ID របស់អ្នក៖", parse_mode="HTML", reply_markup=cancel_kb())
+    else:
+        waiting[uid] = {"step": "order_qty", "prod_id": pid, "plan_idx": idx, "price": price}
+        bot.send_message(uid, f"🛍️ <b>{plan['label']}</b>\n🔢 សូមបញ្ចូលចំនួន (Quantity):", parse_mode="HTML", reply_markup=cancel_kb())
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("smmcat:"))
+def cb_smmcat(call):
+    uid = call.message.chat.id
+    cat = call.data[7:]
+    bot.answer_callback_query(call.id)
+    bot.send_message(uid, f"📂 <b>{cat}</b>", parse_mode="HTML", reply_markup=smm_svc_kb(cat))
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("smmsvc:"))
+def cb_smmsvc(call):
+    uid = call.message.chat.id
+    slug = call.data[7:]
+    bot.answer_callback_query(call.id)
+    s = smm_services.get(slug)
+    if not s: return
+    bot.send_message(uid, f"⚡ <b>{s.get('label', slug)}</b>\nជ្រើសរើសចំនួន (Quantity):", parse_mode="HTML", reply_markup=smm_qty_kb(slug, s))
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("smmqty:"))
+def cb_smmqty(call):
+    uid = call.message.chat.id
+    bot.answer_callback_query(call.id)
+    _, slug, qty_str = call.data.split(":")
+    qty = int(qty_str)
+    s = smm_services.get(slug)
+    if not s: return
+    price = round((float(s.get("cost_rate", 1)) * 1.2) * qty / 1000, 4)
+    waiting[uid] = {"step": "smm_link", "slug": slug, "qty": qty, "price": price}
+    bot.send_message(uid, f"🔗 <b>ផ្ញើ Link របស់អ្នក:</b>", parse_mode="HTML", reply_markup=cancel_kb())
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("back:"))
+def cb_back(call):
+    uid = call.message.chat.id
+    bot.answer_callback_query(call.id)
+    dest = call.data[5:]
+    waiting.pop(uid, None)
+    if dest == "main":
+        bot.send_message(uid, "🏠 Menu", reply_markup=main_kb(uid))
+    elif dest == "shop":
+        bot.send_message(uid, "🛍️ Shop", parse_mode="HTML", reply_markup=products_kb())
+    elif dest == "smmcats":
+        bot.send_message(uid, "📊 SMM Services", parse_mode="HTML", reply_markup=smm_cat_kb())
+
+# ─── TEXT MESSAGE HANDLER ───
 @bot.message_handler(func=lambda m: True)
 def handle(message):
     uid     = message.chat.id
+    uid_str = str(uid)
     text    = message.text.strip() if message.text else ""
     step    = waiting.get(uid)
 
@@ -585,8 +654,57 @@ def handle(message):
             bot.send_message(uid, "❌ ចំនួនខុស! ឧ: <code>5.00</code>", parse_mode="HTML")
         return
 
+    if isinstance(step, dict) and step.get("step") == "order_freefire_uid":
+        prod_id  = step["prod_id"]
+        plan_idx = step["plan_idx"]
+        price    = step["price"]
+        player_id= text.strip()
+        waiting.pop(uid, None)
+        
+        if bal(uid) < price:
+            bot.send_message(uid, f"❌ Balance មិនគ្រប់! (Balance: ${bal(uid):.2f})", reply_markup=main_kb(uid))
+            return
+            
+        ded_bal(uid, price)
+        oid = f"KZ{int(time.time())%100000:05d}"
+        orders[oid] = {
+            "uid": uid_str, "prod_id": prod_id, "prod_name": "Free Fire",
+            "plan": f"Player ID: {player_id}", "price": price, "status": "pending_topup", "ts": int(time.time())
+        }
+        _save(ORDERS_FILE, orders)
+        bot.send_message(uid, f"✅ បញ្ជាទិញជោគជ័យ!\n🆔 ID: <code>{oid}</code>\n💎 Player ID: <code>{player_id}</code>", parse_mode="HTML", reply_markup=main_kb(uid))
+        return
+
+    if isinstance(step, dict) and step.get("step") == "smm_link":
+        slug  = step["slug"]
+        qty   = step["qty"]
+        price = step["price"]
+        link  = text.strip()
+        waiting.pop(uid, None)
+        
+        if bal(uid) < price:
+            bot.send_message(uid, f"❌ Balance មិនគ្រប់! (Balance: ${bal(uid):.2f})", reply_markup=main_kb(uid))
+            return
+            
+        ded_bal(uid, price)
+        oid = f"KZ{int(time.time())%100000:05d}"
+        smm_orders[oid] = {
+            "uid": uid_str, "slug": slug, "qty": qty, "price": price, "link": link, "status": "pending", "ts": int(time.time())
+        }
+        _save(SMM_ORD_FILE, smm_orders)
+        bot.send_message(uid, f"✅ បញ្ជា SMM ជោគជ័យ!\n🆔 <code>{oid}</code>\n🔗 <code>{link}</code>", parse_mode="HTML", reply_markup=main_kb(uid))
+        return
+
     if text in ("🛍️ Shop", "🛍️ ហាងឌីជីថល"):
         bot.send_message(uid, "🛍️ <b>ហាងឌីជីថល</b>", parse_mode="HTML", reply_markup=products_kb())
+        return
+
+    if text in ("💎 ថុបអាប់ហ្គេម", "💎 Game Top Up"):
+        bot.send_message(uid, "💎 <b>Free Fire Top Up</b>", parse_mode="HTML", reply_markup=plans_kb("freefire"))
+        return
+
+    if text in ("📊 SMM Services", "📊 សេវាកម្ម SMM"):
+        bot.send_message(uid, "📊 <b>SMM Services</b>", parse_mode="HTML", reply_markup=smm_cat_kb())
         return
 
     if text in ("💳 ដាក់ប្រាក់", "💰 ដាក់ប្រាក់", "💳 Top Up"):
@@ -605,11 +723,9 @@ def handle(message):
 
 if __name__ == "__main__":
     logger.info(f"{CLR_GREEN}🚀 Kairozen All-in-One Bot v4 กำลังเริ่ม...{CLR_RESET}")
-    # បើក Flask Server ក្នុង Background Thread ដើម្បីដំណើរការរត់នៅលើ Render Web Service មិនឱ្យរអាក់រអួល
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     
-    # ចាប់ផ្ដើម Telegram Bot Polling
     while True:
         try:
             bot.infinity_polling(timeout=60, long_polling_timeout=60)
