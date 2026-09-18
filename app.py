@@ -210,10 +210,10 @@ STRINGS = {
         "how_to_use": (
             "💡 <b>របៀបប្រើប្រាស់</b>\n"
             "━━━━━━━━━━━━━━━━━━\n"
-            "1️⃣ ចុច <b>💳 ដាក់ប្រាក់</b> → ជ្រើស ចំនួន → Scan QR\n"
-            "2️⃣ ចុច <b>🛍️ ហាងឌីជីថល</b> → ជ្រើស ផលិតផល → Plan → ទូទាត់\n"
-            "3️⃣ ចុច <b>💎 ថុបអាប់ហ្គេម</b> → ជ្រើសកញ្ចប់ → បញ្ចូល Player ID\n"
-            "4️⃣ ចុច <b>📊 សេវាកម្ម SMM</b> → Platform → សេវា → ចំនួន → ផ្ញើ Link"
+            "1️⃣ ចុច <b>💳 ដាក់ប្រាក់</b> → ជ្រើស ចំនួន → ជ្រើសរើស ABA ឬ Bakong[cite: 1]\n"
+            "2️⃣ ចុច <b>🛍️ ហាងឌីជីថល</b> → ជ្រើស ផលិតផល → Plan → ទូទាត់[cite: 1]\n"
+            "3️⃣ ចុច <b>💎 ថុបអាប់ហ្គេម</b> → ជ្រើសកញ្ចប់ → បញ្ចូល Player ID[cite: 1]\n"
+            "4️⃣ ចុច <b>📊 សេវាកម្ម SMM</b> → Platform → សេវា → ចំនួន → ផ្ញើ Link[cite: 1]"
         ),
         "support_msg": (
             "💬 <b>ជំនួយ</b>\n"
@@ -253,10 +253,10 @@ STRINGS = {
         "how_to_use": (
             "💡 <b>How to Use</b>\n"
             "━━━━━━━━━━━━━━━━━━\n"
-            "1️⃣ Tap <b>💳 Top Up</b> → Choose Amount → Scan QR\n"
-            "2️⃣ Tap <b>🛍️ Shop</b> → Choose Product → Plan → Pay\n"
-            "3️⃣ Tap <b>💎 Game Top Up</b> → Choose Package → Enter Player ID\n"
-            "4️⃣ Tap <b>📊 SMM Services</b> → Platform → Service → Qty → Send Link"
+            "1️⃣ Tap <b>💳 Top Up</b> → Choose Amount → Select ABA or Bakong[cite: 1]\n"
+            "2️⃣ Tap <b>🛍️ Shop</b> → Choose Product → Plan → Pay[cite: 1]\n"
+            "3️⃣ Tap <b>💎 Game Top Up</b> → Choose Package → Enter Player ID[cite: 1]\n"
+            "4️⃣ Tap <b>📊 SMM Services</b> → Platform → Service → Qty → Send Link[cite: 1]"
         ),
         "support_msg": (
             "💬 <b>Support</b>\n"
@@ -717,7 +717,7 @@ def _send_deposit_qr(uid, amount, promo_code=None, label="💳 ដាក់ប�
         cap += f"\n🎟️ ប្រាក់ Bonus Promo: <b>+${bonus:.2f}</b>"
     cap += (f"\n⏱ ផុតកំណត់: <b>{DEPOSIT_EXPIRE_SEC//60} នាទី</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"📱 Scan ជាមួយ Bakong / ABA / Wing ឬចុចប៊ូតុងខាងក្រោម")
+            f"👇 សូមជ្រើសរើសវិធីសាស្ត្រទូទាត់ខាងក្រោម៖")
     
     if promo_applied and (bonus > 0 or discount > 0):
         confirm_promo(promo_applied, uid)
@@ -771,18 +771,29 @@ def _send_deposit_qr(uid, amount, promo_code=None, label="💳 ដាក់ប�
         except Exception:
             pass
 
-    # ប៊ូតុងតភ្ជាប់ ABA PayWay URL
+    # 🔗 កំណត់ប៊ូតុងជម្រើសទាំងពីរ (ABA ផ្ញើ URL និង Bakong ផ្ញើ QR)[cite: 1]
     aba_payment_url = "https://link.payway.com.kh/ABAPAYuN526009h"
     deposit_markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💳 ចុចទីនេះដើម្បីបង់ប្រាក់តាម ABA", url=aba_payment_url)]
+        [InlineKeyboardButton("💳 បង់ប្រាក់តាម ABA", url=aba_payment_url)],
+        [InlineKeyboardButton("📱 ស្កេន QR (Bakong)", callback_data=f"bakong_show_qr:{dep_id}")]
     ])
 
-    if img_buf:
-        try: bot.send_photo(uid, img_buf, caption=cap, parse_mode="HTML", reply_markup=deposit_markup)
-        except: bot.send_message(uid, cap + f"\n\n<code>{qr_str}</code>", parse_mode="HTML", reply_markup=deposit_markup)
-    else:
-        bot.send_message(uid, cap + f"\n\n<code>{qr_str}</code>", parse_mode="HTML", reply_markup=deposit_markup)
-        
+    # ផ្ញើសារដំបូងជាមួយប៊ូតុងជ្រើសរើសទាំងពីរ
+    bot.send_message(uid, cap, parse_mode="HTML", reply_markup=deposit_markup)
+
+    # បង្កើត Callback Handler សម្រាប់ពេលភ្ញៀវចុចមើល QR Bakong
+    @bot.callback_query_handler(func=lambda c: c.data == f"bakong_show_qr:{dep_id}")
+    def cb_show_bakong_qr(call):
+        bot.answer_callback_query(call.id, "នេះគឺជា QR Code សម្រាប់ Bakong KHQR")
+        if img_buf:
+            try:
+                img_buf.seek(0)
+                bot.send_photo(uid, img_buf, caption=f"📱 <b>Bakong KHQR សម្រាប់ទូទាត់ចំនួន ${final_amount:.2f}</b>", parse_mode="HTML")
+            except:
+                bot.send_message(uid, f"📱 <b>Bakong KHQR String:</b>\n\n<code>{qr_str}</code>", parse_mode="HTML")
+        else:
+            bot.send_message(uid, f"📱 <b>Bakong KHQR String:</b>\n\n<code>{qr_str}</code>", parse_mode="HTML")
+
     threading.Thread(target=_watch_deposit,
                      args=(uid, uid_str, dep_id, final_amount, start_ts), daemon=True).start()
 
