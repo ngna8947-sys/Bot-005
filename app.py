@@ -67,7 +67,7 @@ from PIL import Image, ImageDraw, ImageFont
 # ═══════════════════════════════════════════════════════════
 #  CONFIG  — កែប្រែតម្លៃខាងក្រោមតាមតម្រូវការ
 # ═══════════════════════════════════════════════════════════
-BOT_TOKEN          = "8914728102:AAFCUOmvtYKp3LLoBlg4H4Fbz5PE8joN2zU"
+BOT_TOKEN          = "8914728102:AAGrEWNY4Syuu5kxGZRZAh_737jfHFyIUmw"
 ADMIN_ID           = 8807182741
 
 BAKONG_TOKEN       = "rbkMVUSQPooaey51jm1cD5ECnzmHyeNX7fBX4Afc16GU8k"
