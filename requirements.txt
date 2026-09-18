@@ -1,6 +1,6 @@
 pyTelegramBotAPI
-pillow
-qrcode
 requests
 flask
+qrcode
+pillow
 bakong-khqr
